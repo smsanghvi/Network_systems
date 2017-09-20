@@ -90,6 +90,8 @@ int main (int argc, char * argv[] )
 	else
 		menu_id = 5;
 
+	printf("Menu id is %d\n",menu_id);
+
 	switch(menu_id){
 		case 0: 
 			str = strtok (buffer," ");
@@ -144,11 +146,11 @@ int main (int argc, char * argv[] )
   			str1 = strtok (NULL, " ");
 			
 			if(!strncmp(str1, "foo1", 4))
-				fp = fopen("foo1", "w+"); 
+				fp = fopen("foo1", "w"); 
 			else if(!strncmp(str1, "foo2", 4))
-				fp = fopen("foo2", "w+"); 
+				fp = fopen("foo2", "w"); 
 			else if(!strncmp(str1, "foo3", 4))
-				fp = fopen("foo3", "w+"); 
+				fp = fopen("foo3", "w"); 
 
 			if ((nbytes = sendto(sock, "200\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 				perror("Error in sending data from client end.\n");

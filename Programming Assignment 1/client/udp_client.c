@@ -13,7 +13,15 @@
 #include <string.h>
 #include <errno.h>
 
+//max packet size for a particular interface is 576 bytes
+//hence 4 + (1 * 572) = 572
 #define MAXBUFSIZE 22500
+
+struct packet{
+int packet_id;
+char data[MAXBUFSIZE];
+};
+
 
 int main (int argc, char * argv[]){
 
@@ -106,7 +114,7 @@ int main (int argc, char * argv[]){
 				//exit(1);
 			}
 			
-			fp = fopen(str1, "w+"); 
+			fp = fopen(str1, "w"); 
 			if(fwrite(buffer, nbytes, 1, fp) <= 0){
 				printf("Unable to write to file.\n");
 				//exit(1);
@@ -238,18 +246,21 @@ int main (int argc, char * argv[]){
 			break; 
 		default:
 			printf("\nEnter option correctly.\n");
+
+			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+				perror("Error in sending data from client end.\n");
+				//exit(1);
+			}
+
 			if((nbytes = recvfrom(sock, buffer, 3, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
 				//exit(1);
 			}
 
 			
-			if(!strcmp(buffer, "400"))
-				printf("Server did not understand the given command.\n");
-			else{
-				printf("Did not receive server acknowledgement.\n");
+			printf("\nServer did not understand command.\n");
 				//exit(1);
-			}
+			
 
 	} //end of switch case
 
