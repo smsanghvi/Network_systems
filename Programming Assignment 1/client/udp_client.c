@@ -55,6 +55,7 @@ int main (int argc, char * argv[]){
 	local.sin_port = htons(atoi(argv[2])); 	//setting port no. 
 
 
+	printf("\n-----------------------------------");
 	printf("\nPlease enter one of these options:\n");
 	printf("get [file_name]\n");	
 	printf("put [file_name]\n");	
@@ -93,7 +94,7 @@ int main (int argc, char * argv[]){
 
 			if((nbytes = recvfrom(sock, buffer, 3, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
-				exit(1);
+				//exit(1);
 			}
 
 			if(!strcmp(buffer, "200")){
@@ -102,13 +103,13 @@ int main (int argc, char * argv[]){
 
 			if((nbytes = recvfrom(sock, buffer, MAXBUFSIZE, 0, (struct sockaddr *)&remote_len, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
-				exit(1);
+				//exit(1);
 			}
 			
 			fp = fopen(str1, "w+"); 
 			if(fwrite(buffer, nbytes, 1, fp) <= 0){
 				printf("Unable to write to file.\n");
-				exit(1);
+				//exit(1);
 			}
 
 			fclose(fp);
@@ -120,7 +121,7 @@ int main (int argc, char * argv[]){
 			}
 			else{
 				printf("Server does not have the file\n");
-				exit(1);
+				//exit(1);
 			}
 
 			break; 
@@ -128,13 +129,13 @@ int main (int argc, char * argv[]){
 		case 1: 
 			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
 				perror("Error in sending data from client end.\n");
-				exit(1);
+				//exit(1);
 			}
 
 
 			if((nbytes = recvfrom(sock, buffer, 3, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
-				exit(1);
+				//exit(1);
 			}
 
 			
@@ -142,7 +143,7 @@ int main (int argc, char * argv[]){
 				printf("Server acknowledged receipt of the file.\n");
 			else{
 				printf("Did not receive server acknowledgement.\n");
-				exit(1);
+				//exit(1);
 			}
 
 			str = strtok (options," ");
@@ -180,7 +181,7 @@ int main (int argc, char * argv[]){
 			
 			if ((nbytes = sendto(sock, buffer, newLen-1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
 				perror("Error in sending data from client end.\n");
-				exit(1);
+				//exit(1);
 			}
 			
 			printf("Transmitted %d bytes\n", nbytes);
@@ -190,12 +191,12 @@ int main (int argc, char * argv[]){
 		case 2: 
 			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
 				perror("Error in sending data from client end.\n");
-				exit(1);
+				//exit(1);
 			}
 			
 			if((nbytes = recvfrom(sock, buffer, 3, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
-				exit(1);
+				//exit(1);
 			}
 			
 			if(!strncmp(buffer, "200", 3))
@@ -211,13 +212,13 @@ int main (int argc, char * argv[]){
 			//send out the command packet ls
 			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
 				perror("Error in sending data from client end.\n");
-				exit(1);
+				//exit(1);
 			}
 
 			//receiving output of ls command from server
 			if((nbytes = recvfrom(sock, buffer, MAXBUFSIZE, 0, (struct sockaddr *)&remote_len, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
-				exit(1);
+				//exit(1);
 			}
 			buffer[nbytes] = '\0';
 			
@@ -231,13 +232,24 @@ int main (int argc, char * argv[]){
 		case 4: 
 			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
 				perror("Error in sending data from client end.\n");
-				exit(1);
+				//exit(1);
 			}
 
 			break; 
 		default:
 			printf("\nEnter option correctly.\n");
-			exit(1);
+			if((nbytes = recvfrom(sock, buffer, 3, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
+				perror("Error in recvfrom on client.\n");
+				//exit(1);
+			}
+
+			
+			if(!strcmp(buffer, "400"))
+				printf("Server did not understand the given command.\n");
+			else{
+				printf("Did not receive server acknowledgement.\n");
+				//exit(1);
+			}
 
 	} //end of switch case
 
@@ -251,6 +263,7 @@ if((sock = socket(AF_INET, SOCK_DGRAM, 0))== -1)
 	local.sin_family = AF_INET; //only defining for IPv4 addresses
 	local.sin_port = htons(atoi(argv[2])); 	//setting port no. 
 	
+	printf("\n-----------------------------------");
 	printf("\nPlease enter one of these options:\n");
 	printf("get [file_name]\n");	
 	printf("put [file_name]\n");	

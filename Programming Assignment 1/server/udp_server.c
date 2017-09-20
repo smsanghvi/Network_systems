@@ -63,12 +63,15 @@ int main (int argc, char * argv[] )
 
 	while(1){
 
+	memset(buffer, 0, MAXBUFSIZE);
+
+	printf("\n-----------------------------");
 	printf("\nWaiting to receive data ...\n"); 
 
 	if ((nbytes = recvfrom(sock, buffer, MAXBUFSIZE, 0,  \
 		(struct sockaddr *)&remote, &remote_len	)) < 0){
 		perror("Error in recvfrom on server.\n");
-		exit(1);
+		//exit(1);
 	}
 	
 	buffer[nbytes] = '\0';	
@@ -95,13 +98,13 @@ int main (int argc, char * argv[] )
 			if( access( str1, F_OK ) != -1 ) {
     				if ((nbytes = sendto(sock, "200\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 					perror("Error in sending data from client end.\n");
-					exit(1);
+					//exit(1);
 				}
 	
 			fp = fopen(str1, "r"); 
 			if(fp == NULL){
 				printf("Requested file does not exist.\n\n");
-				exit(1);
+				//exit(1);
 			}			
 
 			else{
@@ -118,7 +121,7 @@ int main (int argc, char * argv[] )
 			
 			if ((nbytes = sendto(sock, buffer, newLen-1, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 				perror("Error in sending data from client end.\n");
-				exit(1);
+				//exit(1);
 			}
 			
 			printf("Transmitted %d bytes\n", nbytes);
@@ -130,7 +133,7 @@ int main (int argc, char * argv[] )
     				printf("Requested file does not exist\n");
 				if ((nbytes = sendto(sock, "400\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 					perror("Error in sending data from client end.\n");
-					exit(1);
+					//exit(1);
 				}
 			}
 
@@ -149,19 +152,19 @@ int main (int argc, char * argv[] )
 
 			if ((nbytes = sendto(sock, "200\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 				perror("Error in sending data from client end.\n");
-				exit(1);
+				//exit(1);
 			}
 
 			//checking server response
 			if((nbytes = recvfrom(sock, buffer, MAXBUFSIZE, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
-				exit(1);
+				//exit(1);
 			}
 
 
 			if(fwrite(buffer, nbytes, 1, fp) <= 0){
 				printf("Unable to write to file.\n");
-				exit(1);
+				//exit(1);
 			}
 
 			fclose(fp);
@@ -178,14 +181,14 @@ int main (int argc, char * argv[] )
 				if(!remove(str1)){
 					if ((nbytes = sendto(sock, "200\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 						perror("Error in sending data from client end.\n");
-						exit(1);
+						//exit(1);
 					}
 					printf("\nFile deleted successfully!\n");				
 				}
 				else{
 					if ((nbytes = sendto(sock, "400\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 						perror("Error in sending data from client end.\n");
-						exit(1);
+						//exit(1);
 					}
 					printf("\nFile could not be deleted.\n");	
 				}
@@ -195,7 +198,7 @@ int main (int argc, char * argv[] )
 				printf("\nFile does not exist.\n"); 
 				if ((nbytes = sendto(sock, "600\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 						perror("Error in sending data from client end.\n");
-						exit(1);
+						//exit(1);
 				}
 			}
 
@@ -206,7 +209,7 @@ int main (int argc, char * argv[] )
   			fp2 = popen("/bin/ls", "r");
   			if (fp2 == NULL) {
    				printf("Failed to run command\n" );
-    				exit(1);
+    				//exit(1);
  			}
   			int i = 0;
   			fp1 = fopen("temp", "w+"); 
@@ -219,7 +222,7 @@ int main (int argc, char * argv[] )
 
     				if(fwrite(path, strlen(path), 1, fp1) <= 0){
 					printf("Unable to write to file.\n");
-					exit(1);
+					//exit(1);
     				}
    
   			}
@@ -229,7 +232,7 @@ int main (int argc, char * argv[] )
 			fp = fopen("temp", "r"); 
 			if(fp == NULL){
 				printf("Requested file does not exist.\n\n");
-				exit(1);
+				//exit(1);
 			}			
 
 			else{
@@ -248,7 +251,7 @@ int main (int argc, char * argv[] )
 			//transmitting the contents of the file 'temp'
 			if ((nbytes = sendto(sock, buffer, newLen-1, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 				perror("Error in sending data from client end.\n");
-				exit(1);
+				//exit(1);
 			}
 			
 			printf("Transmitted %d bytes\n", nbytes);  
@@ -261,8 +264,14 @@ int main (int argc, char * argv[] )
 			close(sock);
 			exit(0); 
 		default:
-			printf("\nEnter option correctly.\n");
-			exit(1);
+			printf("\n%s\n",buffer);
+			printf("Command not understood");
+			if ((nbytes = sendto(sock, "400\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
+				perror("Error in sending data from client end.\n");
+				//exit(1);
+			}
+			
+			
 
 	}//end of switch case
 	
