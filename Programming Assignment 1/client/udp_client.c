@@ -18,13 +18,18 @@
 int main (int argc, char * argv[]){
 
 	int sock;   //socket descriptor
-	struct addrinfo s_addr, *s_info, *temp;
-	int a;
+	struct sockaddr_in local, remote;
+	struct hostent *temp;
+	socklen_t remote_len;
 	int nbytes;
 	int16_t menu_id = -1;	
 	char options[20];
-	char buffer[MAXBUFSIZE] = "Hello world!";
+	char buffer[MAXBUFSIZE];
+	size_t newLen;
+	char *str, *str1;
+	char *temp1 = "foo1";
 	FILE *fp;
+	remote_len = sizeof remote;
 
 	if (argc != 3)
 	{
@@ -36,36 +41,18 @@ int main (int argc, char * argv[]){
 		exit(1);
 	}
 
+	temp = gethostbyname(argv[1]);
+	if(!temp)
+		perror("No such host.");
 
-	memset(&s_addr, 0, sizeof s_addr);
-	s_addr.ai_flags = AI_PASSIVE;  //to use its own IP
-	s_addr.ai_family = AF_INET; //only defining for IPv4 addresses
-	s_addr.ai_socktype = SOCK_DGRAM;  //setting it to type datagram
-	s_addr.ai_protocol = IPPROTO_UDP;
+	if((sock = socket(AF_INET, SOCK_DGRAM, 0))== -1)
+		perror("Socket not setup on client.\n");
+
 	
-	if ((a = getaddrinfo(argv[1], argv[2], &s_addr, &s_info)) != 0){
-		perror("getaddrinfo error.\n");
-		return 1;
-	}
-
-	//looping through the instances of the created linked list
-	for(temp = s_info; temp != NULL; temp = temp->ai_next){
-		if((sock = socket(PF_INET, SOCK_DGRAM, 0))== -1){
-			perror("Socket not setup on client.\n");
-			continue;			
-		}
-
-		printf("Socket created succesfully on client end.\n");
-		break;
-	}
-		
-	if( temp == NULL ){
-		perror("Failed to create socket.\n");
-		return 3;
-	}
-
-	//done with s_info, lets free the space
-	freeaddrinfo(s_info);
+	// building up the structure data
+	memcpy((char *)&local.sin_addr, (char *)temp -> h_addr, temp->h_length);
+	local.sin_family = AF_INET; //only defining for IPv4 addresses
+	local.sin_port = htons(atoi(argv[2])); 	//setting port no. 
 
 
 	printf("\nPlease enter one of these options:\n");
@@ -73,9 +60,12 @@ int main (int argc, char * argv[]){
 	printf("put [file_name]\n");	
 	printf("delete [file_name]\n");	
 	printf("ls\n");	
-	printf("exit\n");	
+	printf("exit\n\n");	
 
 	fgets(options, 20, stdin);
+
+	while(1){
+
 	if  (!strncmp(options, "get ", 4))
 		menu_id = 0;
 	else if (!strncmp(options, "put ", 4))
@@ -92,16 +82,92 @@ int main (int argc, char * argv[]){
 
 	switch(menu_id){
 		case 0: 
-			printf("\nGet\n");
-			break; 
-		case 1: 
-			printf("\nPut\n");
-			fp = fopen("foo5.png", "r");
-			if(fp == NULL)
-				printf("File does not exist.\n");
+			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+				perror("Error in sending data from client end.\n");
+				exit(1);
+			}
 			
+			str = strtok (options," ");
+  			str1 = strtok (NULL, " ");
+
+
+			if((nbytes = recvfrom(sock, buffer, 3, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
+				perror("Error in recvfrom on client.\n");
+				exit(1);
+			}
+
+			if(!strcmp(buffer, "200")){
+				printf("\nServer acknowledged request for the file.\n");
+
+
+			if((nbytes = recvfrom(sock, buffer, MAXBUFSIZE, 0, (struct sockaddr *)&remote_len, &remote_len)) < 0){
+				perror("Error in recvfrom on client.\n");
+				exit(1);
+			}
+			
+			fp = fopen(str1, "w+"); 
+			if(fwrite(buffer, nbytes, 1, fp) <= 0){
+				printf("Unable to write to file.\n");
+				exit(1);
+			}
+
+			fclose(fp);
+
+			printf("\nNumber of bytes received is %d.\n", nbytes);
+			buffer[nbytes] = '\0';
+
+
+			}
 			else{
-				size_t newLen = fread(buffer, sizeof(char), MAXBUFSIZE, fp);
+				printf("Server does not have the file\n");
+				exit(1);
+			}
+
+			break; 
+
+		case 1: 
+			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+				perror("Error in sending data from client end.\n");
+				exit(1);
+			}
+
+
+			if((nbytes = recvfrom(sock, buffer, 3, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
+				perror("Error in recvfrom on client.\n");
+				exit(1);
+			}
+
+			
+			if(!strcmp(buffer, "200"))
+				printf("Server acknowledged receipt of the file.\n");
+			else{
+				printf("Did not receive server acknowledgement.\n");
+				exit(1);
+			}
+
+			str = strtok (options," ");
+  			str1 = strtok (NULL, " ");
+
+			long int len = strlen(str1);
+			memset(buffer, 0, MAXBUFSIZE);
+			if(!strncmp(str1, "foo1", 4))
+				fp = fopen("foo1", "r"); 
+			else if(!strncmp(str1, "foo2", 4))
+				fp = fopen("foo2", "r"); 
+			else if(!strncmp(str1, "foo3", 4))
+				fp = fopen("foo3", "r"); 
+			else{
+				printf("File does not exist.\n");
+				exit(1);
+			}		
+
+			if(fp == NULL){
+				printf("File does not exist.\n");
+				exit(1);
+			}			
+
+			else{
+				newLen = fread(buffer, sizeof(char), MAXBUFSIZE, fp);
 				if(ferror(fp)!=0)
   					fputs("Error reading file", stderr);
 
@@ -111,32 +177,94 @@ int main (int argc, char * argv[]){
 
 				fclose(fp);
 			}
-
-			if ((nbytes = sendto(sock, buffer, strlen(buffer), 0,  \
-		(struct sockaddr *)temp->ai_addr, temp->ai_addrlen)) < 0){
-			perror("Error in sending data from client end.\n");
-			exit(1);
-	}
-
-	printf("Transmitted %d bytes\n", nbytes);
+			
+			if ((nbytes = sendto(sock, buffer, newLen-1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+				perror("Error in sending data from client end.\n");
+				exit(1);
+			}
+			
+			printf("Transmitted %d bytes\n", nbytes);
+			
 			break; 
+
 		case 2: 
-			printf("\nDelete\n");
+			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+				perror("Error in sending data from client end.\n");
+				exit(1);
+			}
+			
+			if((nbytes = recvfrom(sock, buffer, 3, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
+				perror("Error in recvfrom on client.\n");
+				exit(1);
+			}
+			
+			if(!strncmp(buffer, "200", 3))
+				printf("\nFile deleted successfully!\n");
+			else if(!strncmp(buffer, "400", 3))
+				printf("\nFile could not be deleted.\n");	
+			else if(!strncmp(buffer, "600", 3))
+				printf("File does not exist.\n");
+			
 			break; 
 		case 3: 
-			printf("\nls\n");
-			break; 
+
+			//send out the command packet ls
+			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+				perror("Error in sending data from client end.\n");
+				exit(1);
+			}
+
+			//receiving output of ls command from server
+			if((nbytes = recvfrom(sock, buffer, MAXBUFSIZE, 0, (struct sockaddr *)&remote_len, &remote_len)) < 0){
+				perror("Error in recvfrom on client.\n");
+				exit(1);
+			}
+			buffer[nbytes] = '\0';
+			
+			printf("\nFiles present:");
+			printf("\n%s\n",buffer);
+
+			printf("Number of bytes received is %d.\n", nbytes);
+			
+			break;
+
 		case 4: 
-			printf("\nexit\n");
+			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+				perror("Error in sending data from client end.\n");
+				exit(1);
+			}
+
 			break; 
 		default:
 			printf("\nEnter option correctly.\n");
 			exit(1);
 
-	}
+	} //end of switch case
 
+
+if((sock = socket(AF_INET, SOCK_DGRAM, 0))== -1)
+		perror("Socket not setup on client.\n");
+
+	
+	// building up the structure data
+	memcpy((char *)&local.sin_addr, (char *)temp -> h_addr, temp->h_length);
+	local.sin_family = AF_INET; //only defining for IPv4 addresses
+	local.sin_port = htons(atoi(argv[2])); 	//setting port no. 
+	
+	printf("\nPlease enter one of these options:\n");
+	printf("get [file_name]\n");	
+	printf("put [file_name]\n");	
+	printf("delete [file_name]\n");	
+	printf("ls\n");	
+	printf("exit\n\n");	
+
+	fgets(options, 20, stdin);
+
+	} //end of while loop
+	
 
 	close(sock);
 	return 0;
 
 }
+
