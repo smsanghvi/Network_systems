@@ -13,20 +13,24 @@
 #include <string.h>
 #include <errno.h>
 
+//max packet size for a particular interface is 576 bytes
+//hence 8 + (1 * 568) = 568
 #define MAXBUFSIZE 1024
 
 typedef struct{
-	int index;
-	char data[MAXBUFSIZE];
-	int data_length;
-}packet; 
+int index;
+char data[MAXBUFSIZE];
+int data_length;
+}packet;
 
 
 int main (int argc, char * argv[]){
 
 	int sock;   //socket descriptor
+	packet *pckt = NULL;
+	long int total_size = 0;
+
 	struct sockaddr_in local, remote;
-	int total_size = 0;
 	struct hostent *temp;
 	socklen_t remote_len;
 	int nbytes;
@@ -35,7 +39,6 @@ int main (int argc, char * argv[]){
 	char buffer[MAXBUFSIZE];
 	size_t newLen;
 	char *str, *str1;
-	packet *pckt = NULL;
 	char *temp1 = "foo1";
 	FILE *fp;
 	remote_len = sizeof remote;
@@ -64,7 +67,7 @@ int main (int argc, char * argv[]){
 	local.sin_port = htons(atoi(argv[2])); 	//setting port no. 
 
 
-	printf("\n-------------------------------------");
+	printf("\n-----------------------------------");
 	printf("\nPlease enter one of these options:\n");
 	printf("get [file_name]\n");	
 	printf("put [file_name]\n");	
@@ -100,44 +103,38 @@ int main (int argc, char * argv[]){
 			str = strtok (options," ");
   			str1 = strtok (NULL, " ");
 
-			pckt = (packet *)malloc(sizeof(packet));
 
 			if((nbytes = recvfrom(sock, buffer, 3, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
 				//exit(1);
 			}
 
-			if(!strcmp(buffer, "200"))
+			if(!strcmp(buffer, "200")){
 				printf("\nServer acknowledged request for the file.\n");
 
-			//receiving total length of data file to expect
-			if((nbytes = recvfrom(sock, &total_size, 10, 0, (struct sockaddr *)&remote_len, &remote_len)) < 0){
+
+			if((nbytes = recvfrom(sock, pckt->data, MAXBUFSIZE, 0, (struct sockaddr *)&remote_len, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
 				//exit(1);
 			}
-
-			printf("Total file length is %d\n", total_size);
-
-
-			//getting file data
-			int index_temp = 1;
-			while(total_size>0){
-				nbytes = recvfrom(sock, pckt, sizeof(*pckt), 0, (struct sockaddr *)&remote, &remote_len);
-				if(pckt->index == index_temp){
-					fwrite(pckt->data, sizeof(char), nbytes - 8, fp);
-					total_size = total_size - pckt->data_length;
-					memset(pckt, 0, sizeof(*pckt));
-					pckt->index = index_temp;
-					index_temp++;	
-					printf("Remaining file length is %d\n", total_size);
-				}
-
+			
+			fp = fopen(str1, "w"); 
+			if(fwrite(pckt->data, nbytes, 1, fp) <= 0){
+				printf("Unable to write to file.\n");
+				//exit(1);
 			}
 
-			printf("Hi there\n");
-
 			fclose(fp);
-			free(pckt);
+
+			printf("\nNumber of bytes received is %d.\n", nbytes);
+			pckt->data[nbytes] = '\0';
+
+
+			}
+			else{
+				printf("Server does not have the file\n");
+				//exit(1);
+			}
 
 			break; 
 
@@ -167,7 +164,7 @@ int main (int argc, char * argv[]){
 			pckt = (packet *)malloc(sizeof(packet));
 
 			long int len = strlen(str1);
-			memset(buffer, 0, MAXBUFSIZE);
+			memset(pckt->data, 0, MAXBUFSIZE);
 			if(!strncmp(str1, "foo1", 4))
 				fp = fopen("foo1", "r"); 
 			else if(!strncmp(str1, "foo2", 4))
@@ -179,51 +176,39 @@ int main (int argc, char * argv[]){
 				exit(1);
 			}		
 
-			if(fp == NULL){
-				printf("File does not exist.\n");
-				exit(1);
-			}			
 
-			else{
-
-				//determining the total file size
-				fseek(fp, 0, SEEK_END);
-				int total_size = ftell(fp);
-				fseek(fp, 0, SEEK_SET);
-				printf("Total size is %d\n", total_size);
-
-				//sending the total file size to expect
-				if (nbytes = sendto(sock, &total_size, sizeof(total_size+1), 0,  (struct sockaddr *)&local, sizeof local) < 0){
+			//determining the total file size
+			fseek(fp, 0, SEEK_END);
+			total_size = ftell(fp);
+			fseek(fp, 0, SEEK_SET);
+			printf("Total size is %ld\n", total_size);
+			
+			if (nbytes = sendto(sock, &total_size, sizeof(total_size+1), 0,  (struct sockaddr *)&local, sizeof local) < 0){
 					perror("Error in sending data from client end.\n");}
-
-				pckt->index = 0;
-				int sent_index = 0;
-				int total_packets = (total_size)/(sizeof(pckt->data));
-				printf("Total number of packets is %d\n",total_packets);
-				total_packets++; //since truncation took place earlier		
-
-
-				while(total_size){
-
-					pckt->index++;
-					sent_index = pckt->index;
-
-					pckt->data_length = fread(pckt->data, sizeof(char), MAXBUFSIZE, fp);
 			
-					if ((nbytes = sendto(sock, pckt, sizeof(*pckt), 0,  (struct sockaddr *)&local, sizeof local)) < 0){
-						perror("Error in sending data from client end.\n");
-					}
-
-					//printf("Transmitted %d bytes\n", nbytes);
-					total_size = total_size - pckt->data_length;
-					printf("Remaining file size: %d\n",total_size);
-				}	
+			pckt->index = 0;
+			int sent_index = 0;
+			int total_packets = (total_size)/(sizeof(pckt->data));
+			printf("Total number of packets is %d\n",total_packets);
 			
-			}
+			total_packets++; //since truncation took place earlier	
+			while(total_size){
+				pckt->index++;
+				sent_index = pckt->index;
 
+				pckt->data_length = fread(pckt->data, sizeof(char), MAXBUFSIZE, fp);
+			
+				if ((nbytes = sendto(sock, pckt, sizeof(*pckt), 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+					perror("Error in sending data from client end.\n");
+				}
+			
+				//printf("Transmitted %d bytes\n", nbytes);
+				total_size = total_size - pckt->data_length;
+			printf("Remaining file size: %d\n",total_size);
+			}//end of while loop	
+			
 			fclose(fp);
-			free(pckt);
-			
+		
 			break; 
 
 		case 2: 
@@ -276,18 +261,21 @@ int main (int argc, char * argv[]){
 			break; 
 		default:
 			printf("\nEnter option correctly.\n");
+
+			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+				perror("Error in sending data from client end.\n");
+				//exit(1);
+			}
+
 			if((nbytes = recvfrom(sock, buffer, 3, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
 				//exit(1);
 			}
 
 			
-			if(!strcmp(buffer, "400"))
-				printf("Server did not understand the given command.\n");
-			else{
-				printf("Did not receive server acknowledgement.\n");
+			printf("\nServer did not understand command.\n");
 				//exit(1);
-			}
+			
 
 	} //end of switch case
 
@@ -318,3 +306,6 @@ if((sock = socket(AF_INET, SOCK_DGRAM, 0))== -1)
 	return 0;
 
 }
+
+
+
