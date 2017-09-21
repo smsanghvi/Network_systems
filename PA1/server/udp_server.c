@@ -192,12 +192,24 @@ int main (int argc, char * argv[] )
 			int index_temp = 1;
 			while(total_size){
 				nbytes = recvfrom(sock, pckt, sizeof(*pckt), 0, (struct sockaddr *)&remote, &remote_len);
+				
+				//best case
 				if(pckt->index == index_temp){
 					fwrite(pckt->data, sizeof(char), pckt->data_length, fp);
 					total_size = total_size - pckt->data_length;
 					memset(pckt, 0, sizeof(*pckt));
+					int send_bytes = sendto(sock, &(index_temp), 5, 0,  (struct sockaddr *)&remote, sizeof remote);
+					if(send_bytes)
+						printf("Sent ack for packet %d.\n", index_temp);
 					pckt->index = index_temp;
 					index_temp++;	
+				}
+
+				//this means that ACK was not received by server. Sending only ACK
+				else if(pckt->index < index_temp){
+					int send_bytes = sendto(sock, &(pckt->index), 5, 0,  (struct sockaddr *)&remote, sizeof remote);
+					if(send_bytes)
+						printf("Sent ack for packet %d.\n", pckt->index);
 				}
 
 			}
@@ -294,7 +306,7 @@ int main (int argc, char * argv[] )
 			
 			break; 
 		case 4: 
-			printf("Server shutting down...\n");
+			printf("Server shutting down ...\n");
 			close(sock);
 			exit(0); 
 		default:

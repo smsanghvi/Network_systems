@@ -38,6 +38,11 @@ int main (int argc, char * argv[]){
 	packet *pckt = NULL;
 	char *temp1 = "foo1";
 	FILE *fp;
+
+	struct timeval timeout;
+	timeout.tv_sec = 0;
+	timeout.tv_usec = 500000;	//setting a timeout of 200ms
+
 	remote_len = sizeof remote;
 
 	if (argc != 3)
@@ -63,6 +68,11 @@ int main (int argc, char * argv[]){
 	local.sin_family = AF_INET; //only defining for IPv4 addresses
 	local.sin_port = htons(atoi(argv[2])); 	//setting port no. 
 
+
+	if(setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(struct timeval)) != 0){
+		printf("Cannot set the setsockopt function.\n");
+		exit(1);
+	}
 
 	printf("\n-------------------------------------");
 	printf("\nPlease enter one of these options:\n");
@@ -199,8 +209,7 @@ int main (int argc, char * argv[]){
 				pckt->index = 0;
 				int sent_index = 0;
 				int total_packets = (total_size)/(sizeof(pckt->data));
-				printf("Total number of packets is %d\n",total_packets);
-				total_packets++; //since truncation took place earlier		
+				printf("Total number of packets is %d\n",++total_packets);
 
 
 				while(total_size){
@@ -214,9 +223,46 @@ int main (int argc, char * argv[]){
 						perror("Error in sending data from client end.\n");
 					}
 
-					//printf("Transmitted %d bytes\n", nbytes);
-					total_size = total_size - pckt->data_length;
-					printf("Remaining file size: %d\n",total_size);
+					printf("Sending packet id: %d.\n", pckt->index);
+
+					//total_size = total_size - pckt->data_length;
+					//printf("Remaining file size: %d\n",total_size);
+
+					int recvd_packet_id, rev;
+
+					rev = recvfrom(sock, &recvd_packet_id, 5, 0, (struct sockaddr *)&remote, &remote_len);
+					
+					//case when receiver timed out and didn't receive ACK
+					if(rev<0){
+						printf("Timed out, did not get ACK.\n");
+						printf("The error is %d.\n", errno);
+
+						//sending data again
+						if ((nbytes = sendto(sock, pckt, sizeof(*pckt), 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+							perror("Error in sending data from client end.\n");
+						}
+						printf("Sending packet id: %d again\n", pckt->index);
+						rev = recvfrom(sock, &recvd_packet_id, 5, 0, (struct sockaddr *)&remote, &remote_len);
+					}
+
+					//case when receiver received correct ACK
+					else if(recvd_packet_id == sent_index){
+						total_size = total_size - pckt->data_length;
+						printf("ACK for packet %d received.\n", recvd_packet_id);
+						printf("Remaining file size: %d\n\n",total_size);
+					}
+
+					//case when got the wrong ACK
+					else{
+						printf("Got the wrong ACK, got ACK %d.\n", recvd_packet_id);
+						printf("Retransmitting packet %d ...\n", sent_index);
+						//sending data again
+						if ((nbytes = sendto(sock, pckt, sizeof(*pckt), 0,  (struct sockaddr *)&local, sizeof local)) < 0){
+							perror("Error in sending data from client end.\n");
+						}
+						printf("Sending packet id: %d again.\n", pckt->index);
+						rev = recvfrom(sock, &recvd_packet_id, 5, 0, (struct sockaddr *)&remote, &remote_len);
+					}
 				}	
 			
 			}
