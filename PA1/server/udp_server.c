@@ -134,8 +134,7 @@ int main (int argc, char * argv[] )
 				pckt->index = 0;
 				int sent_index = 0;
 				total_packets = (total_size)/(sizeof(pckt->data));
-				printf("Total number of packets is %d\n",total_packets);
-				total_packets++; //since truncation took place earlier	
+				printf("Total number of packets is %d\n",++total_packets);	
 
 
 				while(total_size){
@@ -146,18 +145,20 @@ int main (int argc, char * argv[] )
 					pckt->data_length = fread(pckt->data, sizeof(char), MAXBUFSIZE, fp);
 			
 					if ((nbytes = sendto(sock, pckt, sizeof(*pckt), 0, (struct sockaddr *)&remote, sizeof remote)) < 0){
-						perror("Error in sending data from client end.\n");
+						perror("Error in sending data from server end.\n");
 					}
 
 					//printf("Transmitted %d bytes\n", nbytes);
 					total_size = total_size - pckt->data_length;
 					printf("Remaining file size: %d\n",total_size);
 				}
+
+
 	
 			}
-
+			
 			fclose(fp);
-			free(pckt);
+			//free(pckt);
 						
 			break; 
 		
@@ -216,7 +217,7 @@ int main (int argc, char * argv[] )
 
 
 			fclose(fp);
-			free(pckt);
+			//free(pckt);
 
 			break; 
 

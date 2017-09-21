@@ -69,11 +69,6 @@ int main (int argc, char * argv[]){
 	local.sin_port = htons(atoi(argv[2])); 	//setting port no. 
 
 
-	if(setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(struct timeval)) != 0){
-		printf("Cannot set the setsockopt function.\n");
-		exit(1);
-	}
-
 	printf("\n-------------------------------------");
 	printf("\nPlease enter one of these options:\n");
 	printf("get [file_name]\n");	
@@ -121,21 +116,28 @@ int main (int argc, char * argv[]){
 				printf("\nServer acknowledged request for the file.\n");
 
 			//receiving total length of data file to expect
-			if((nbytes = recvfrom(sock, &total_size, 10, 0, (struct sockaddr *)&remote_len, &remote_len)) < 0){
+			if((nbytes = recvfrom(sock, &total_size, 10, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
 				//exit(1);
 			}
 
 			printf("Total file length is %d\n", total_size);
 
+			fp = fopen(str1, "w");
 
 			//getting file data
 			int index_temp = 1;
-			while(total_size>0){
+			while(total_size){
 				nbytes = recvfrom(sock, pckt, sizeof(*pckt), 0, (struct sockaddr *)&remote, &remote_len);
+				printf("Got here\n");
+				printf("nbytes received are %d\n", nbytes);
+
 				if(pckt->index == index_temp){
-					fwrite(pckt->data, sizeof(char), nbytes - 8, fp);
+					printf("pckt->index is %d\n", pckt->index);
+					printf("pckt->data_length is %d\n", pckt->data_length);
+					fwrite(pckt->data, sizeof(char), pckt->data_length, fp);
 					total_size = total_size - pckt->data_length;
+					printf("Total size is %d\n", total_size);
 					memset(pckt, 0, sizeof(*pckt));
 					pckt->index = index_temp;
 					index_temp++;	
@@ -147,7 +149,7 @@ int main (int argc, char * argv[]){
 			printf("Hi there\n");
 
 			fclose(fp);
-			free(pckt);
+			//free(pckt);
 
 			break; 
 
@@ -211,6 +213,10 @@ int main (int argc, char * argv[]){
 				int total_packets = (total_size)/(sizeof(pckt->data));
 				printf("Total number of packets is %d\n",++total_packets);
 
+				if(setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(struct timeval)) != 0){
+					printf("Cannot set the setsockopt function.\n");
+					exit(1);
+				}
 
 				while(total_size){
 
@@ -268,7 +274,7 @@ int main (int argc, char * argv[]){
 			}
 
 			fclose(fp);
-			free(pckt);
+			//free(pckt);
 			
 			break; 
 
