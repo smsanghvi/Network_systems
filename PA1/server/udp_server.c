@@ -14,7 +14,7 @@
 #include <string.h>
 
 
-#define MAXBUFSIZE 1024
+#define MAXBUFSIZE 1480
 
 typedef struct{
 	int index;
@@ -33,6 +33,7 @@ int main (int argc, char * argv[] )
 	char buffer[MAXBUFSIZE];
 	char temp2[1000];
 	packet *pckt = NULL;
+	packet *pckt_ack = NULL;
 	char path[1000]; //used in case of ls
 	int16_t menu_id = -1;	
 	socklen_t remote_len;
@@ -41,6 +42,7 @@ int main (int argc, char * argv[] )
 	FILE *fp;
 	FILE *fp2;
   	FILE *fp1;
+  	int packet_size;
 	
 	if(argc != 2){
 		printf ("USAGE: <port>\n");
@@ -57,7 +59,7 @@ int main (int argc, char * argv[] )
 	local.sin_family = AF_INET;  		//setting IPv4 family
 	local.sin_port = htons(atoi(argv[1]));  //setting port number
 	local.sin_addr.s_addr = INADDR_ANY;     //setting the address
-	
+	packet_size = sizeof(pckt->index) + sizeof(pckt->data) + sizeof(pckt->data_length);
 
 	if((sock = socket(AF_INET, SOCK_DGRAM, 0))== -1)
 		perror("Socket not setup on server.\n");
@@ -84,7 +86,7 @@ int main (int argc, char * argv[] )
 		//exit(1);
 	}
 	
-	buffer[nbytes] = '\0';	
+	//buffer[nbytes] = '\0';	
 
 
 	if  (!strncmp(buffer, "get ", 4))
@@ -158,7 +160,7 @@ int main (int argc, char * argv[] )
 			}
 			
 			fclose(fp);
-			//free(pckt);
+			free(pckt);
 						
 			break; 
 		
@@ -166,6 +168,7 @@ int main (int argc, char * argv[] )
 			str = strtok (buffer," ");
   			str1 = strtok (NULL, " ");
 			pckt = (packet *)malloc(sizeof(packet));
+			pckt_ack = (packet *)malloc(sizeof(packet));
 
 
 			if(!strncmp(str1, "foo1", 4))
@@ -180,8 +183,10 @@ int main (int argc, char * argv[] )
 				//exit(1);
 			}
 
+			printf("Ready to accept.\n");
+
 			//receiving total file size
-			if((nbytes = recvfrom(sock, &total_size, 10, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
+			if((nbytes = recvfrom(sock, &total_size, sizeof total_size, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
 				//exit(1);
 			}
@@ -191,33 +196,50 @@ int main (int argc, char * argv[] )
 
 			//getting file data
 			int index_temp = 1;
-			while(total_size){
-				nbytes = recvfrom(sock, pckt, sizeof(*pckt), 0, (struct sockaddr *)&remote, &remote_len);
+
+			while(total_size>0){
+				nbytes = recvfrom(sock, pckt, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
 				
 				//best case
 				if(pckt->index == index_temp){
 					fwrite(pckt->data, sizeof(char), pckt->data_length, fp);
 					total_size = total_size - pckt->data_length;
-					memset(pckt, 0, sizeof(*pckt));
-					int send_bytes = sendto(sock, &(index_temp), 5, 0,  (struct sockaddr *)&remote, sizeof remote);
+					memset(pckt, 0, packet_size);
+
+					pckt->index = index_temp;
+					int send_bytes = sendto(sock, pckt, packet_size, 0,  (struct sockaddr *)&remote, sizeof remote);
 					if(send_bytes)
 						printf("Sent ack for packet %d.\n", index_temp);
-					pckt->index = index_temp;
 					index_temp++;	
 				}
 
 				//this means that ACK was not received by server. Sending only ACK
 				else if(pckt->index < index_temp){
-					int send_bytes = sendto(sock, &(pckt->index), 5, 0,  (struct sockaddr *)&remote, sizeof remote);
-					if(send_bytes)
-						printf("Sent ack for packet %d.\n", pckt->index);
+					strcpy(pckt->data, "Retransmit packet.");
+					int send_bytes = sendto(sock, pckt->data, packet_size, 0, (struct sockaddr *)&remote, sizeof remote);
+			
+					nbytes = recvfrom(sock, pckt, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
+					//best case
+					if(pckt->index == index_temp){
+						fwrite(pckt->data, sizeof(char), pckt->data_length, fp);
+						total_size = total_size - pckt->data_length;
+						memset(pckt, 0, packet_size);
+
+						pckt->index = index_temp;
+						int send_bytes = sendto(sock, pckt, packet_size, 0,  (struct sockaddr *)&remote, sizeof remote);
+						if(send_bytes)
+							printf("Sent ack for packet %d.\n", index_temp);
+						index_temp++;	
+					}
+
 				}
 
+				memset(pckt, 0, packet_size);
 			}
 
 
 			fclose(fp);
-			//free(pckt);
+			free(pckt);
 
 			break; 
 
