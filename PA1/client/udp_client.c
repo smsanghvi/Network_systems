@@ -40,6 +40,9 @@ int main (int argc, char * argv[]){
 	char *temp1 = "foo1";
 	FILE *fp;
 	int packet_size = 0;
+	unsigned long dataLen;
+	int loop_count;
+	int total_packets = 0;
 
 	struct timeval timeout;
 
@@ -130,10 +133,15 @@ int main (int argc, char * argv[]){
 			//opening the file
 			fp = fopen(str1, "w");
 
+			total_packets = (total_size)/(sizeof(pckt->data));
+			printf("Total number of packets is %d\n",++total_packets);
+			dataLen = strlen(pckt->data);
+			loop_count = 0;
+
 			//getting file data
 			int index_temp = 1;
 
-			while(total_size>0){
+			while(total_size>0 && total_packets>0){
 				nbytes = recvfrom(sock, pckt, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
 
 				//best case
@@ -142,11 +150,17 @@ int main (int argc, char * argv[]){
 					total_size = total_size - pckt->data_length;
 					memset(pckt, 0, packet_size);
 
+					//decryption
+					while(loop_count<dataLen){
+    					pckt->data[loop_count++] ^= '1'; 
+    				}
+
 					pckt->index = index_temp;
 					int send_bytes = sendto(sock, pckt, packet_size, 0,  (struct sockaddr *)&local, sizeof local);
 					if(send_bytes)
 						printf("Sent ack for packet %d.\n", index_temp);
 					index_temp++;	
+					printf("Packets left to send: %d\n", --total_packets);
 				}
 
 				//this means that ACK was not received by server. Sending only ACK
@@ -242,7 +256,7 @@ int main (int argc, char * argv[]){
 
 			pckt->index = 0;
 			int sent_index = 0;
-			int total_packets = (total_size)/(sizeof(pckt->data));
+			total_packets = (total_size)/(sizeof(pckt->data));
 			printf("Total number of packets is %d\n",++total_packets);
 			int total_acks_received = 0;
 
@@ -251,12 +265,21 @@ int main (int argc, char * argv[]){
 
 			setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
 
+			dataLen = strlen(pckt->data);
+    		//unsigned long keyLen = strlen(key);
+    		loop_count = 0;
+
 			while(total_size>0 && total_packets>0){
 
 				//applying some delay on the sender end to achieve better sysnchronization
-				for(int k = 0; k < 10000; k++){}
+				for(int k = 0; k < 5000; k++){}
 				pckt->index++;
 				sent_index = pckt->index;
+
+    			//encryption
+    			while(loop_count<dataLen){
+    				pckt->data[loop_count++] ^= '1'; 
+    			}
 
 				pckt->data_length = fread(pckt->data, sizeof(char), MAXBUFSIZE, fp);
 			
@@ -298,7 +321,7 @@ int main (int argc, char * argv[]){
 					while(pckt_ack->index != sent_index){
 						nbytes = sendto(sock, pckt, packet_size, 0,  (struct sockaddr *)&local, sizeof local);
 						printf("Retransmitted packet id: %d\n", pckt->index );
-						for(int k=0; k< 30000; k++){}
+						for(int k=0; k< 20000; k++){}
 						rev = recvfrom(sock, pckt_ack, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
 					}
 
