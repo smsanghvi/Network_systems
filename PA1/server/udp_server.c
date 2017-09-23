@@ -147,14 +147,14 @@ int main (int argc, char * argv[] )
 			int total_acks_received = 0;
 
 			timeout.tv_sec = 0;
-			timeout.tv_usec = 750000;	//setting a timeout of 600ms
+			timeout.tv_usec = 600000;	//setting a timeout of 600ms
 
 			setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
 
 			while(total_size>0 && total_packets>0){
 
 				//applying some delay on the sender end to achieve better sysnchronization
-				for(int k = 0; k < 30000; k++){}
+				for(int k = 0; k < 10000; k++){}
 				pckt->index++;
 				sent_index = pckt->index;
 
@@ -282,19 +282,14 @@ int main (int argc, char * argv[] )
 				else if(pckt->index < index_temp){
 					strcpy(pckt->data, "Retransmit packet.");
 					int send_bytes = sendto(sock, pckt->data, packet_size, 0, (struct sockaddr *)&remote, sizeof remote);
-			
+					printf("Retransmitting ACK ...\n");
 					nbytes = recvfrom(sock, pckt, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
 					//best case
-					if(pckt->index == index_temp){
-						fwrite(pckt->data, sizeof(char), pckt->data_length, fp);
-						total_size = total_size - pckt->data_length;
-						memset(pckt, 0, packet_size);
-
-						pckt->index = index_temp;
+					if(pckt->index == (index_temp - 1)){
+						pckt->index = index_temp-1;
 						int send_bytes = sendto(sock, pckt, packet_size, 0,  (struct sockaddr *)&remote, sizeof remote);
 						if(send_bytes)
 							printf("Sent ack for packet %d.\n", index_temp);
-						index_temp++;	
 					}
 
 				}
