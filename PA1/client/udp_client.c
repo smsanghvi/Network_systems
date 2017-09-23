@@ -43,8 +43,14 @@ int main (int argc, char * argv[]){
 	unsigned long dataLen;
 	int loop_count;
 	int total_packets = 0;
+	char *temp_key;
+	unsigned long keyLen;
+	int flag = 0;
 
 	struct timeval timeout;
+
+	//encryption key
+	char *key = "1234567890987654321234567890987654321234567890987654321234567890";
 
 	remote_len = sizeof remote;
 
@@ -135,13 +141,14 @@ int main (int argc, char * argv[]){
 
 			total_packets = (total_size)/(sizeof(pckt->data));
 			printf("Total number of packets is %d\n",++total_packets);
-			dataLen = strlen(pckt->data);
-			loop_count = 0;
+			dataLen = sizeof(pckt->data);
+			keyLen = strlen(key);
 
 			//getting file data
 			int index_temp = 1;
 
 			while(total_size>0 && total_packets>0){
+				loop_count = 0;
 				nbytes = recvfrom(sock, pckt, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
 
 				//best case
@@ -149,11 +156,14 @@ int main (int argc, char * argv[]){
 					fwrite(pckt->data, sizeof(char), pckt->data_length, fp);
 					total_size = total_size - pckt->data_length;
 					memset(pckt, 0, packet_size);
-
-					//decryption
+					
+					//encryption
 					while(loop_count<dataLen){
-    					pckt->data[loop_count++] ^= '1'; 
-    				}
+						//pckt->data[loop_count++] ^= '1';
+    					pckt->data[loop_count] ^= key[loop_count % (keyLen-1)]; 
+    					++loop_count;
+    					flag=1;
+	   				}
 
 					pckt->index = index_temp;
 					int send_bytes = sendto(sock, pckt, packet_size, 0,  (struct sockaddr *)&local, sizeof local);
@@ -183,12 +193,15 @@ int main (int argc, char * argv[]){
 
 			}
 
+			if(flag)
+				printf("Encrypted data has been decrypted...\n");
+
 
 			fclose(fp);
 			free(pckt);
 			free(pckt_ack);
 
-			break; 
+		break; 
 
 		case 1: 
 			if ((nbytes = sendto(sock, options, strlen(options) - 1, 0,  (struct sockaddr *)&local, sizeof local)) < 0){
@@ -265,20 +278,22 @@ int main (int argc, char * argv[]){
 
 			setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
 
-			dataLen = strlen(pckt->data);
-    		//unsigned long keyLen = strlen(key);
-    		loop_count = 0;
-
+			dataLen = sizeof(pckt->data);
+			//printf("dataLen is %d\n", dataLen);
+    		
 			while(total_size>0 && total_packets>0){
 
+				loop_count = 0;
 				//applying some delay on the sender end to achieve better sysnchronization
 				for(int k = 0; k < 5000; k++){}
 				pckt->index++;
 				sent_index = pckt->index;
 
-    			//encryption
-    			while(loop_count<dataLen){
-    				pckt->data[loop_count++] ^= '1'; 
+				//encryption using the 64-bit key
+				while(loop_count<dataLen){
+    				pckt->data[loop_count] ^= key[loop_count % (keyLen-1)]; 
+    				++loop_count;
+    				flag=1;
     			}
 
 				pckt->data_length = fread(pckt->data, sizeof(char), MAXBUFSIZE, fp);
@@ -344,6 +359,8 @@ int main (int argc, char * argv[]){
 			setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));			
 			
 			printf("Total acks received: %d\n", total_acks_received);
+			if(flag)
+				printf("Encrypted data has been sent...\n");
 
 			fclose(fp);
 			free(pckt);

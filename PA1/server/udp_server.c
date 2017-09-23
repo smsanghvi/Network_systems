@@ -13,7 +13,6 @@
 #include <memory.h>
 #include <string.h>
 
-
 #define MAXBUFSIZE 1480
 
 typedef struct{
@@ -45,8 +44,14 @@ int main (int argc, char * argv[] )
   	int loop_count=0;
   	int total_packets=0;
   	unsigned long dataLen =0;
+  	char *temp_key;
+  	unsigned long keyLen;
+  	int flag=0;
 	
   	struct timeval timeout;
+
+  	//encryption key
+  	char *key = "1234567890987654321234567890987654321234567890987654321234567890";
 
 	if(argc != 2){
 		printf ("USAGE: <port>\n");
@@ -151,20 +156,23 @@ int main (int argc, char * argv[] )
 			timeout.tv_sec = 0;
 			timeout.tv_usec = 600000;	//setting a timeout of 600ms
 
-			dataLen = strlen(pckt->data);
-
 			setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+
+			dataLen = sizeof(pckt->data);
 
 			while(total_size>0 && total_packets>0){
 
+				loop_count = 0;
 				//applying some delay on the sender end to achieve better sysnchronization
 				for(int k = 0; k < 5000; k++){}
 				pckt->index++;
 				sent_index = pckt->index;
 
-    			//encryption
-    			while(loop_count<dataLen){
-    				pckt->data[loop_count++] ^= '1'; 
+				//encryption using the 64-bit key
+				while(loop_count<dataLen){
+    				pckt->data[loop_count] ^= key[loop_count % (keyLen-1)]; 
+    				++loop_count;
+    				flag=1;
     			}
 
 
@@ -232,6 +240,8 @@ int main (int argc, char * argv[] )
 			setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));			
 
 			printf("Total acks received: %d\n", total_acks_received);
+			if(flag)
+				printf("Encrypted data has been sent...\n");
 
 			fclose(fp);
 			free(pckt);
@@ -271,14 +281,15 @@ int main (int argc, char * argv[] )
 
 			//getting file data
 			int index_temp = 1;
+    		keyLen = strlen(key);
+    		dataLen = sizeof(pckt->data);
 
-			unsigned long dataLen;
-    		//unsigned long keyLen = strlen(key);
-    		loop_count = 0;
     		total_packets = (total_size)/(sizeof(pckt->data));
 			printf("Total number of packets is %d\n",++total_packets);
 
 			while(total_size>0 && total_packets>0){
+				//strcpy(temp_key, key);
+				loop_count = 0;
 				nbytes = recvfrom(sock, pckt, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
 				
 				//best case
@@ -287,10 +298,13 @@ int main (int argc, char * argv[] )
 					total_size = total_size - pckt->data_length;
 					memset(pckt, 0, packet_size);
 
-					//decryption
+					//encryption
 					while(loop_count<dataLen){
-    					pckt->data[loop_count++] ^= '1'; 
-    				}
+						//pckt->data[loop_count++] ^= '1';
+    					pckt->data[loop_count] ^= key[loop_count % (keyLen-1)]; 
+    					++loop_count;
+    					flag=1;
+	   				}
 
 					pckt->index = index_temp;
 					int send_bytes = sendto(sock, pckt, packet_size, 0,  (struct sockaddr *)&remote, sizeof remote);
@@ -319,6 +333,8 @@ int main (int argc, char * argv[] )
 				memset(pckt, 0, packet_size);
 			}
 
+			if(flag)
+				printf("Encrypted data has been decrypted...\n");
 
 			fclose(fp);
 			free(pckt);
