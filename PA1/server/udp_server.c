@@ -1,3 +1,28 @@
+/*****************************************************************************
+​ * ​ ​ Copyright​ ​ (C)​ ​ 2017​ ​ by​ ​ Snehal Sanghvi
+​ *
+​ * ​ ​  Users​ ​ are  ​ permitted​ ​ to​ ​ modify​ ​ this​ ​ and​ ​ use​ ​ it​ ​ to​ ​ learn​ ​ about​ ​ the​ ​ field​ ​ of​ ​ embedded
+​ * ​ ​ software.​ ​ Snehal Sanghvi​ ​ and​ ​ the​ ​ University​ ​ of​ ​ Colorado​ ​ are​ ​ not​ ​ liable​ ​ for​ ​ any​ ​ misuse​ ​ of​ ​ this​ ​ material.
+​ *
+*****************************************************************************/
+/**
+​ * ​ ​ @file​ ​ udp_server.c
+​ * ​ ​ @brief​ ​ Source file having the server implementation of the udp protocol.
+​​ * ​ ​ @author​ ​ Snehal Sanghvi
+​ * ​ ​ @date​ ​ September ​ 23 ​ 2017
+​ * ​ ​ @version​ ​ 1.0
+​ *   @compiler used to process code: GCC compiler
+ *	 @functionality implemented: 
+ 	 Created a menu-like interface for the client side having the following options:
+ 		 1> get <file> : requests a file from the server
+ 		 2> put <file> : transfers a file to the server
+ 		 3> delete <file> : deletes the given file from server
+ 		 4> ls : lists all the files present in the server directory
+ 		 5> exit : shuts down the server gracefully
+ 	 Also implemented a reliability mechanism involving timeouts and receving ACKs from the receiver.
+	 Implemented a basic XOR encryption on packet data being sent and a decryption at the receiver end.
+​ */
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -13,12 +38,14 @@
 #include <memory.h>
 #include <string.h>
 
+//setting the packet data size to 1480 bytes -> lesser than 1500 bytes (which is 1 packet chunk for ethernet)
 #define MAXBUFSIZE 1480
 
+//packet structure
 typedef struct{
-	int index;
-	char data[MAXBUFSIZE];
-	int data_length;
+	int index;				//packet index
+	char data[MAXBUFSIZE];	//packet data
+	int data_length;		//packet data length
 }packet; 
 
 
@@ -50,7 +77,7 @@ int main (int argc, char * argv[] )
 	
   	struct timeval timeout;
 
-  	//encryption key
+  	//64 character encryption key
   	char *key = "1234567890987654321234567890987654321234567890987654321234567890";
 
 	if(argc != 2){
@@ -68,6 +95,7 @@ int main (int argc, char * argv[] )
 	local.sin_family = AF_INET;  		//setting IPv4 family
 	local.sin_port = htons(atoi(argv[1]));  //setting port number
 	local.sin_addr.s_addr = INADDR_ANY;     //setting the address
+	
 	packet_size = sizeof(pckt->index) + sizeof(pckt->data) + sizeof(pckt->data_length);
 
 	if((sock = socket(AF_INET, SOCK_DGRAM, 0))== -1)
@@ -82,6 +110,7 @@ int main (int argc, char * argv[] )
 
 	remote_len = sizeof remote;
 
+	//comparing the user input to specific search strings
 	while(1){
 
 	memset(buffer, 0, MAXBUFSIZE);
@@ -89,14 +118,12 @@ int main (int argc, char * argv[] )
 	printf("\n-----------------------------");
 	printf("\nWaiting to receive data ...\n"); 
 
+	//receiving the option from client
 	if ((nbytes = recvfrom(sock, buffer, MAXBUFSIZE, 0,  \
 		(struct sockaddr *)&remote, &remote_len	)) < 0){
 		perror("Error in recvfrom on server.\n");
-		//exit(1);
 	}
 	
-	//buffer[nbytes] = '\0';	
-
 
 	if  (!strncmp(buffer, "get ", 4))
 		menu_id = 0;
@@ -111,21 +138,23 @@ int main (int argc, char * argv[] )
 	else
 		menu_id = 5;
 
-	printf("Menu id is %d\n",menu_id);
 
 	switch(menu_id){
+
+		//get <FILE>
 		case 0: 
+
+			//function to split the string based on certain delimiters
 			str = strtok (buffer," ");
   			str1 = strtok (NULL, " ");
 
-  			pckt = (packet *)malloc(sizeof(packet));
-
+  			//using access function to check if the requested file is present in the directory
 			if( access( str1, F_OK ) != -1 ) {
     				if ((nbytes = sendto(sock, "200\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 					perror("Error in sending data from client end.\n");
-					//exit(1);
 				}
 	
+			//allocating memory to packets
 			pckt = (packet *)malloc(sizeof(packet));
 			pckt_ack = (packet *)malloc(sizeof(packet));
 
@@ -153,16 +182,18 @@ int main (int argc, char * argv[] )
 			printf("Total number of packets is %d\n",++total_packets);	
 			int total_acks_received = 0;
 
+			//setting a timeout of 600ms before sender times out
 			timeout.tv_sec = 0;
-			timeout.tv_usec = 600000;	//setting a timeout of 600ms
+			timeout.tv_usec = 600000;
 
 			setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
 
 			dataLen = sizeof(pckt->data);
 
+			//loop while you dont receive all packets
 			while(total_size>0 && total_packets>0){
-
 				loop_count = 0;
+
 				//applying some delay on the sender end to achieve better sysnchronization
 				for(int k = 0; k < 5000; k++){}
 				pckt->index++;
@@ -178,14 +209,17 @@ int main (int argc, char * argv[] )
 
 				pckt->data_length = fread(pckt->data, sizeof(char), MAXBUFSIZE, fp);
 			
+				//sending the actual packet
 				nbytes = sendto(sock, pckt, sizeof(*pckt), 0, (struct sockaddr *)&remote, sizeof remote);
 				printf("Sending packet id: %d.\n", pckt->index);
 
 				int rev;
 
+				//receiving ACK response from client
 				rev = recvfrom(sock, pckt_ack, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
 				int count = 0;
 
+				//if did not receive ACK within timeout, then send again and wait for response
 				while(rev < 0){
 					memset(pckt_ack, 0, packet_size);
 					printf("Getting error no.: %d\n", errno);
@@ -197,7 +231,7 @@ int main (int argc, char * argv[] )
 					rev = recvfrom(sock, pckt_ack, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
 				}
 
-				//case when receiver received correct ACK
+				//case when receiver received correct ACK, decrease the file size to send
 				if(pckt_ack->index == sent_index){
 					total_size = total_size - pckt->data_length;
 					printf("ACK for packet %d received.\n", sent_index);
@@ -206,7 +240,6 @@ int main (int argc, char * argv[] )
 					printf("Packets left to send: %d\n", --total_packets);
 				}
 
-				//case when receiver timed out and didn't receive ACK
 				else if(strcmp(pckt_ack->data, "Retransmit packet.")){
 					for(int k=0; k< 1000; k++){}
 					nbytes = sendto(sock, pckt, packet_size, 0,  (struct sockaddr *)&remote, sizeof remote);
@@ -235,7 +268,7 @@ int main (int argc, char * argv[] )
 
 			//modifying the socket so that the receiver goes to infinite blocking again
 			timeout.tv_sec = 0;
-			timeout.tv_usec = 0;	//setting a timeout of 600ms
+			timeout.tv_usec = 0;
 
 			setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));			
 
@@ -249,9 +282,14 @@ int main (int argc, char * argv[] )
 						
 			break; 
 		
-		case 1: 
+		//set <FILE>
+		case 1:
+
+		 	//function to split the string based on certain delimiters
 			str = strtok (buffer," ");
   			str1 = strtok (NULL, " ");
+
+  			//allocating packet memory
 			pckt = (packet *)malloc(sizeof(packet));
 			pckt_ack = (packet *)malloc(sizeof(packet));
 
@@ -265,15 +303,11 @@ int main (int argc, char * argv[] )
 
 			if ((nbytes = sendto(sock, "200\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 				perror("Error in sending data from client end.\n");
-				//exit(1);
 			}
-
-			printf("Ready to accept.\n");
 
 			//receiving total file size
 			if((nbytes = recvfrom(sock, &total_size, sizeof total_size, 0, (struct sockaddr *)&remote, &remote_len)) < 0){
 				perror("Error in recvfrom on client.\n");
-				//exit(1);
 			}
 
 			printf("Total file length is %d\n", total_size);
@@ -287,8 +321,8 @@ int main (int argc, char * argv[] )
     		total_packets = (total_size)/(sizeof(pckt->data));
 			printf("Total number of packets is %d\n",++total_packets);
 
+			//looping till packets have been received
 			while(total_size>0 && total_packets>0){
-				//strcpy(temp_key, key);
 				loop_count = 0;
 				nbytes = recvfrom(sock, pckt, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
 				
@@ -298,9 +332,8 @@ int main (int argc, char * argv[] )
 					total_size = total_size - pckt->data_length;
 					memset(pckt, 0, packet_size);
 
-					//encryption
+					//encryption using a 64-character key
 					while(loop_count<dataLen){
-						//pckt->data[loop_count++] ^= '1';
     					pckt->data[loop_count] ^= key[loop_count % (keyLen-1)]; 
     					++loop_count;
     					flag=1;
@@ -320,7 +353,8 @@ int main (int argc, char * argv[] )
 					int send_bytes = sendto(sock, pckt->data, packet_size, 0, (struct sockaddr *)&remote, sizeof remote);
 					printf("Retransmitting ACK ...\n");
 					nbytes = recvfrom(sock, pckt, packet_size, 0, (struct sockaddr *)&remote, &remote_len);
-					//best case
+					
+					//if packet index is 1 less than the local expected index, just transmit the required packet  
 					if(pckt->index == (index_temp - 1)){
 						pckt->index = index_temp-1;
 						int send_bytes = sendto(sock, pckt, packet_size, 0,  (struct sockaddr *)&remote, sizeof remote);
@@ -342,21 +376,24 @@ int main (int argc, char * argv[] )
 
 			break; 
 
+		//delete <FILE>
 		case 2: 
+
+			//function to split the string based on certain delimiters
 			str = strtok (buffer," ");
   			str1 = strtok (NULL, " ");
+
+  			//check if file exists, if it exists use 'remove' function to delete
 			if( access( str1, F_OK ) != -1 ) {
 				if(!remove(str1)){
 					if ((nbytes = sendto(sock, "200\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 						perror("Error in sending data from client end.\n");
-						//exit(1);
 					}
 					printf("\nFile deleted successfully!\n");				
 				}
 				else{
 					if ((nbytes = sendto(sock, "400\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 						perror("Error in sending data from client end.\n");
-						//exit(1);
 					}
 					printf("\nFile could not be deleted.\n");	
 				}
@@ -366,41 +403,41 @@ int main (int argc, char * argv[] )
 				printf("\nFile does not exist.\n"); 
 				if ((nbytes = sendto(sock, "600\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 						perror("Error in sending data from client end.\n");
-						//exit(1);
 				}
 			}
 
 			break; 
+
+		//ls
 		case 3: 
 			
-  			/* Open the command for reading. */
+  			/* Open the pipe for reading. */
   			fp2 = popen("/bin/ls", "r");
   			if (fp2 == NULL) {
    				printf("Failed to run command\n" );
-    				//exit(1);
  			}
+
   			int i = 0;
   			fp1 = fopen("temp", "w+"); 
 			
   			/* Read the output a line at a time - output it. */
   			while (fgets(path, sizeof(path), fp2) != NULL) {
-    				//filtering out useless stuff
+    				//filtering out useless garbage characters
     				if(strlen(path)==1)
-					continue;
+						continue;
 
     				if(fwrite(path, strlen(path), 1, fp1) <= 0){
-					printf("Unable to write to file.\n");
-					//exit(1);
+						printf("Unable to write to file.\n");
     				}
    
   			}
+
 			fclose(fp1);
 		
 			//data written to a file 'temp'
 			fp = fopen("temp", "r"); 
 			if(fp == NULL){
 				printf("Requested file does not exist.\n\n");
-				//exit(1);
 			}			
 
 			else{
@@ -419,24 +456,28 @@ int main (int argc, char * argv[] )
 			//transmitting the contents of the file 'temp'
 			if ((nbytes = sendto(sock, buffer, newLen-1, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 				perror("Error in sending data from client end.\n");
-				//exit(1);
 			}
 			
 			printf("Transmitted %d bytes\n", nbytes);  
   			pclose(fp2);
+
+  			//delete the temporary file
 			remove("temp");
 			
 			break; 
+
+		//exit	
 		case 4: 
 			printf("Server shutting down ...\n");
 			close(sock);
 			exit(0); 
+		
+		//received some other command
 		default:
 			printf("\n%s\n",buffer);
 			printf("Command not understood");
 			if ((nbytes = sendto(sock, "400\n", 3, 0,  (struct sockaddr *)&remote, sizeof remote)) < 0){
 				perror("Error in sending data from client end.\n");
-				//exit(1);
 			}
 			
 			
@@ -445,10 +486,6 @@ int main (int argc, char * argv[] )
 	
 
 	}//end of while loop
-
-	//closing socket connection
-	//close(sock);
-
 
 	
 	return 0;
