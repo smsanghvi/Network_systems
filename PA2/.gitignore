@@ -1,0 +1,11 @@
+*.exe
+*.dll
+*.png
+*.jpg
+*.o
+*.so
+*.com
+*.log
+*.iso
+*.gz
+*.tar
