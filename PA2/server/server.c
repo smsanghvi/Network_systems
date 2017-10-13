@@ -44,6 +44,7 @@ int main (int argc, char * argv[] )
 	char *rqst_version;  //for splitting string
 	char *str;
 	char root_path[100];
+	char content[50][50];
 	int port_int;
 	char buf_ws[MAXSIZE_WS];
 	int count = 0;
@@ -51,7 +52,9 @@ int main (int argc, char * argv[] )
 	char index1[10];
 	char index2[10];
 	FILE *fp1;
+	int pos = 0;
 	char eg[1000];
+	int no_of_content_types = 0;
 
 
 	if(argc != 1){
@@ -86,7 +89,7 @@ int main (int argc, char * argv[] )
 		//reading a line at a time
 		fgets(buf_ws, MAXSIZE_WS, fp);
 		str = strtok(buf_ws, "\n");
-		printf("str is %s\n", str);
+		//printf("str is %s\n", str);
 
 		//extracting port number and storing it in port_int
 		if(count==1){
@@ -120,6 +123,23 @@ int main (int argc, char * argv[] )
 		}
 
 
+		if(count==4){
+			//printf("%c\n", buf_ws[0]);
+			//while(strcmp(buf_ws, "#connection timeout")){
+			while(buf_ws[0]!='#'){
+				str = strtok(buf_ws, " ");
+				strcpy(content[pos], str);
+				pos++;
+				str = strtok(NULL, "\"");
+				strcpy(content[pos], str);
+				pos++;
+				fgets(buf_ws, MAXSIZE_WS, fp);
+				no_of_content_types++;
+			}
+			count=5;
+		}
+
+
 		if(!strcmp(str, "#serviceport number")){
 			count=1;
 		}
@@ -132,11 +152,14 @@ int main (int argc, char * argv[] )
 		else if(!strcmp(str, "#Content-Type which the server handles")){
 			count=4;
 		}
+		else if(count==5){
+			//printf("In connection timeout\n");
+		}
 		else{
 			count=0;
 		}
 
-		printf("Count:%d\n", count);
+		//printf("Count:%d\n", count);
 
 	}
 	
@@ -147,9 +170,15 @@ int main (int argc, char * argv[] )
 	local.sin_port = htons(port_int);  		//setting port number from config file
 	local.sin_addr.s_addr = INADDR_ANY;     //setting the address
 	
-	printf("port is %d\n", port_int);
-	printf("root path is %s\n", root_path);
-	printf("default pages are %s, %s, %s\n", index0, index1, index2);
+	printf("Parsing the server configuration file...\n");
+	printf("Port no. is %d\n", port_int);
+	printf("Root path is %s\n", root_path);
+	printf("Default pages are %s, %s, %s\n", index0, index1, index2);
+	printf("Content types are:\n");
+	for(int n = 0; n < 2*no_of_content_types; n=n+2){
+		printf("%s %s", content[n], content[n+1]);
+	}
+	printf("Finished parsing.\n\n");
 
 	//calling the socket function
 	if((sock_listen = socket(AF_INET, SOCK_STREAM, 0))== -1)
