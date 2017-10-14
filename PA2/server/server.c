@@ -27,6 +27,24 @@ void parse_config_file(){
 
 }
 
+uint8_t mapping_content(char *content_in, char *content_out, char *content, int pos){
+	/*int i;
+	for(i = 0; i < pos; i++){
+
+	}
+	if(!strcpy(content_in, ".html")){
+		strcpy(conte)
+	}*/
+	for(int i=0; i<9; i++){
+		if(!strcmp(content_in, (content +2*i))){
+			strcpy(content_out, (content + 2*i + 1));
+			return 0;
+		}
+		content+=2;
+	}
+	return 1;
+}
+
 int main (int argc, char * argv[] )
 {
 	int sock_listen;   //socket descriptor
@@ -42,8 +60,10 @@ int main (int argc, char * argv[] )
 	char *rqst_method;  //for splitting string
 	char *rqst_url;  	//for splitting string
 	char *rqst_version;  //for splitting string
+	char rqst_url_copy[20];
 	char *str;
 	char root_path[100];
+	char total_path[150];
 	char content[50][50];
 	int port_int;
 	char buf_ws[MAXSIZE_WS];
@@ -54,7 +74,11 @@ int main (int argc, char * argv[] )
 	FILE *fp1;
 	int pos = 0;
 	char eg[1000];
-	int no_of_content_types = 0;
+	int file_presence;
+	int no_of_content_types = 0;  //for ws.conf content types
+	char extension[10];
+	char *extension_temp;
+	char content_type_out[20];
 
 
 	if(argc != 1){
@@ -71,25 +95,12 @@ int main (int argc, char * argv[] )
 
 	char path_temp[200] = "/home/ssanghvi/Network_systems/PA2/server";
 	char modified_path[100];
-	//strcat(path_temp, modified_path);
 
-	/*
-	fp1 = fopen(path_temp, "r");
-	if(fp1==NULL){
-		perror("Could not open file.\n");
-		exit(1);
-	}
-	char tetete[100];
-	printf("Opened\n");
-	fread(tetete, 1, 100, fp1);
-	printf("tetete is %s\n", tetete);
-	fclose(fp1);*/
 
 	while(!feof(fp)){
 		//reading a line at a time
 		fgets(buf_ws, MAXSIZE_WS, fp);
 		str = strtok(buf_ws, "\n");
-		//printf("str is %s\n", str);
 
 		//extracting port number and storing it in port_int
 		if(count==1){
@@ -109,6 +120,7 @@ int main (int argc, char * argv[] )
 			strtok(buf_ws, "\"");
 			str = strtok(NULL, "\"");
 			strcpy(root_path, str);
+			strcpy(total_path, str);
 		}
 
 		//extracting directory indices which serve as default web pages
@@ -153,13 +165,10 @@ int main (int argc, char * argv[] )
 			count=4;
 		}
 		else if(count==5){
-			//printf("In connection timeout\n");
 		}
 		else{
 			count=0;
 		}
-
-		//printf("Count:%d\n", count);
 
 	}
 	
@@ -170,6 +179,8 @@ int main (int argc, char * argv[] )
 	local.sin_port = htons(port_int);  		//setting port number from config file
 	local.sin_addr.s_addr = INADDR_ANY;     //setting the address
 	
+
+	//logging the parsing output
 	printf("Parsing the server configuration file...\n");
 	printf("Port no. is %d\n", port_int);
 	printf("Root path is %s\n", root_path);
@@ -179,6 +190,7 @@ int main (int argc, char * argv[] )
 		printf("%s %s", content[n], content[n+1]);
 	}
 	printf("Finished parsing.\n\n");
+
 
 	//calling the socket function
 	if((sock_listen = socket(AF_INET, SOCK_STREAM, 0))== -1)
@@ -202,8 +214,10 @@ int main (int argc, char * argv[] )
 		printf("Unable to listen for connections.\n");
 	}
 	else{
-		printf("Listening for incoming connections...\n");
+		printf("Listening for incoming connections...");
 	}
+
+	printf("\n");
 
 	while(1){
 		//accept a connection
@@ -215,7 +229,7 @@ int main (int argc, char * argv[] )
 			exit(1);
 		}	
 
-		printf("Accepted a connection from %s\n", inet_ntoa(remote.sin_addr));
+		printf("\n\nAccepted a connection from %s\n", inet_ntoa(remote.sin_addr));
 		
 		if( (pid = fork()) == 0){
 
@@ -223,32 +237,102 @@ int main (int argc, char * argv[] )
 
 			while((bytes_read = recv(sock_connect, client_msg, MAXSIZE, 0)) > 0){
 				//printf("Message received: %s\n", client_msg);
-				puts(client_msg);
-				//printf("Hooray!\n");
+				//puts(client_msg);
 				rqst_method = strtok (client_msg," ");
 				printf("Request method: %s\n", rqst_method);
-  				rqst_url = strtok (NULL, " /");
+  				rqst_url = strtok (NULL, " ");
   				printf("Request URL: %s\n", rqst_url);
+  				strcpy(rqst_url_copy, rqst_url);
   				rqst_version = strtok (NULL, " \n");
   				printf("Request version: %s\n", rqst_version);
-  				strcpy(modified_path, rqst_url);
-  				strcat(path_temp, modified_path);
-  				printf("Here\n");
+  				//strcpy(modified_path, rqst_url);
+  				strcat(total_path, rqst_url);
+  				printf("Total path is: ");
+  				puts(total_path);
+
+  				//get extension
+  				strtok(rqst_url_copy, ".");
+  				extension_temp = strtok(NULL, " ");
+  				strcpy(extension, ".");
+  				strcat(extension, extension_temp);
+  				printf("Extension is %s\n", extension);
+
+  				//mapping - code to map the file extension to file content type 
+  				int count_temp=0;
+  				int flag=0;
+
+  				for(count_temp=0; count_temp<no_of_content_types; count_temp++){
+  					if(!strcmp(extension, content[count_temp])){
+  						strcpy(content_type_out, content[count_temp+1]);
+  						flag=1;
+  						break;
+  					}
+  				}
+
+  				if(flag){
+  					printf("Content-Type is %s\n", content_type_out);
+  				}
+  				else{
+  					printf("Did not find content-type mapping.\n");
+  				}
+  				
+
+  				//checking if file is present in the path or not
+  				file_presence = access (total_path, F_OK);
+  				
+  				//printf("strlen is %ld and str is %s", strlen(rqst_url), rqst_url);
+  				//shutdown(sock_connect, 1);
+  				//special case of file path just being '/' - return index.html
+  				/*if(!strncmp(&rqst_url[1], "/", 1)){
+  					printf("Hit the special case of /!\n");
+  					printf("Heya!\n");
+  					printf("Heya!\n");
+  					printf("Heya!\n");
+  					printf("Heya!\n");
+  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
+  					<html><head><title>Special case</title></head>\r\n<body> \
+  					<p>A paragraph</p>\r\n \
+  					</body></html>\r\n", "text/html");
+					send(sock_connect, eg, strlen(eg), 0);
+					shutdown(sock_connect, 1);
+					memset(client_msg, 0, sizeof client_msg);
+					exit(1);
+  				}
+
+  				else{
+
+  					printf("Im here.\n");
+  				}*/
+
+  				if(file_presence){
+  					//file not present - throw 404
+  					sprintf(eg,"HTTP/1.1 404 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
+  					<html><head><title>Simple webserver</title></head>\r\n<body> \
+  					<p><b>404: File not present</b></p>\r\n \
+  					</body></html>\r\n", content_type_out);
+					send(sock_connect, eg, strlen(eg), 0);
+					shutdown(sock_connect, 1);
+					memset(client_msg, 0, sizeof client_msg);  		
+					exit(1);			
+  				}
+  				else{
+  					//if return is 0, file is present
+  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
+  					<html><head><title>Simple webserver</title></head>\r\n<body> \
+  					<p>A paragraph</p>\r\n \
+  					</body></html>\r\n", "text/html");
+					send(sock_connect, eg, strlen(eg), 0);
+					shutdown(sock_connect, 1);
+					memset(client_msg, 0, sizeof client_msg);
+  				}
+
   				/*const char webpage[] = 
   				"HTTP/1.1 200 OK\r\n"
   				"Content-Type: text/html; charset=UTF-8\r\n\r\n"
   				"<!DOCTYPE html>\r\n"
   				"<html><head><title>Webserver header</title></head>\r\n"
   				"<body>Hello world!</body></html>\r\n";*/
-  				sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
-  					<html><head><title>Simple webserver</title></head>\r\n<body> \
-  					<p>A paragraph</p>\r\n<p><img src=\"www/images/exam.gif\">exam.gif</a> \
-  					</body></html>\r\n", "text/html");
-				send(sock_connect, eg, strlen(eg), 0);
-				shutdown(sock_connect, 1);
-				printf("Data sent.\n");
-				memset(client_msg, 0, sizeof client_msg);
-				//close(sock_connect);
+
 			}
 
 			/*if(bytes_read == 0){
