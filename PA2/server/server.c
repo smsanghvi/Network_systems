@@ -16,34 +16,12 @@
 
 #define _GNU_SOURCE		//for accept function
 #define MAXSIZE 1024
-#define PORT 8888
 #define BACKLOG 10	//for listen function call
 #define MAXSIZE_WS  100   //for ws.conf file
 
 int param;
 FILE *fp;
 
-void parse_config_file(){
-
-}
-
-uint8_t mapping_content(char *content_in, char *content_out, char *content, int pos){
-	/*int i;
-	for(i = 0; i < pos; i++){
-
-	}
-	if(!strcpy(content_in, ".html")){
-		strcpy(conte)
-	}*/
-	for(int i=0; i<9; i++){
-		if(!strcmp(content_in, (content +2*i))){
-			strcpy(content_out, (content + 2*i + 1));
-			return 0;
-		}
-		content+=2;
-	}
-	return 1;
-}
 
 int main (int argc, char * argv[] )
 {
@@ -64,8 +42,9 @@ int main (int argc, char * argv[] )
 	char *str;
 	char root_path[100];
 	char total_path[150];
+	char timeout_str[10];
 	char content[50][50];
-	int port_int;
+	int port_int, timeout;
 	char buf_ws[MAXSIZE_WS];
 	int count = 0;
 	char index0[10];
@@ -165,6 +144,14 @@ int main (int argc, char * argv[] )
 			count=4;
 		}
 		else if(count==5){
+			//handling the keep-alive timeout value
+			fgets(buf_ws, MAXSIZE_WS, fp);
+			strtok(buf_ws, " ");
+			strtok(NULL, " ");
+			str = strtok(NULL, " ");
+			strcpy(timeout_str, str);
+			timeout = atoi(timeout_str);
+			break;
 		}
 		else{
 			count=0;
@@ -189,6 +176,7 @@ int main (int argc, char * argv[] )
 	for(int n = 0; n < 2*no_of_content_types; n=n+2){
 		printf("%s %s", content[n], content[n+1]);
 	}
+	printf("Timeout value is %d\n", timeout);
 	printf("Finished parsing.\n\n");
 
 
@@ -205,7 +193,7 @@ int main (int argc, char * argv[] )
 	if( bind(sock_listen, (struct sockaddr *)&local, sizeof(local)) == -1)
 		perror("Cannot bind port on server.\n");		
 
-	printf("Port %d successfully attached to socket.\n", PORT);
+	printf("Port %d successfully attached to socket.\n", port_int);
 
 	remote_len = sizeof remote;
 
@@ -242,6 +230,7 @@ int main (int argc, char * argv[] )
 				printf("Request method: %s\n", rqst_method);
   				rqst_url = strtok (NULL, " ");
   				printf("Request URL: %s\n", rqst_url);
+  				printf("strlen is %ld\n", strlen(rqst_url));
   				strcpy(rqst_url_copy, rqst_url);
   				rqst_version = strtok (NULL, " \n");
   				printf("Request version: %s\n", rqst_version);
@@ -249,6 +238,18 @@ int main (int argc, char * argv[] )
   				strcat(total_path, rqst_url);
   				printf("Total path is: ");
   				puts(total_path);
+
+  				//special case - when url is just '/' with strlen=1
+  				if(strlen(rqst_url)==1){
+  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
+  					<html><head><title>Special case</title></head>\r\n<body> \
+  					<p>Need to return index.html!</p>\r\n \
+  					</body></html>\r\n");
+					send(sock_connect, eg, strlen(eg), 0);
+					shutdown(sock_connect, 1);
+					memset(client_msg, 0, sizeof client_msg);
+					break;  					
+  				}
 
   				//get extension
   				strtok(rqst_url_copy, ".");
@@ -279,31 +280,6 @@ int main (int argc, char * argv[] )
 
   				//checking if file is present in the path or not
   				file_presence = access (total_path, F_OK);
-  				
-  				//printf("strlen is %ld and str is %s", strlen(rqst_url), rqst_url);
-  				//shutdown(sock_connect, 1);
-  				//special case of file path just being '/' - return index.html
-  				/*if(!strncmp(&rqst_url[1], "/", 1)){
-  					printf("Hit the special case of /!\n");
-  					printf("Heya!\n");
-  					printf("Heya!\n");
-  					printf("Heya!\n");
-  					printf("Heya!\n");
-  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
-  					<html><head><title>Special case</title></head>\r\n<body> \
-  					<p>A paragraph</p>\r\n \
-  					</body></html>\r\n", "text/html");
-					send(sock_connect, eg, strlen(eg), 0);
-					shutdown(sock_connect, 1);
-					memset(client_msg, 0, sizeof client_msg);
-					exit(1);
-  				}
-
-  				else{
-
-  					printf("Im here.\n");
-  				}*/
-
   				if(file_presence){
   					//file not present - throw 404
   					sprintf(eg,"HTTP/1.1 404 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
@@ -320,18 +296,11 @@ int main (int argc, char * argv[] )
   					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
   					<html><head><title>Simple webserver</title></head>\r\n<body> \
   					<p>A paragraph</p>\r\n \
-  					</body></html>\r\n", "text/html");
+  					</body></html>\r\n", content_type_out);
 					send(sock_connect, eg, strlen(eg), 0);
 					shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
   				}
-
-  				/*const char webpage[] = 
-  				"HTTP/1.1 200 OK\r\n"
-  				"Content-Type: text/html; charset=UTF-8\r\n\r\n"
-  				"<!DOCTYPE html>\r\n"
-  				"<html><head><title>Webserver header</title></head>\r\n"
-  				"<body>Hello world!</body></html>\r\n";*/
 
 			}
 
