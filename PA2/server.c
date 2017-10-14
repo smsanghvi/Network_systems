@@ -246,13 +246,20 @@ int main (int argc, char * argv[] )
   				printf("File path : ");
   				puts(total_path);
 
-  				//special case - when url is just '/' with strlen=1
+  				//special case - when url is just '/' with strlen=1 -> return default index.html
   				if(strlen(rqst_url)==1){
-  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
-  					<html><head><title>Special case</title></head>\r\n<body> \
-  					<p>Need to return index.html!</p>\r\n \
-  					</body></html>\r\n");
+  					strcpy(rqst_url, index0); 
+  					strcat(total_path, rqst_url);
+   					fp = fopen(total_path, "r");
+  					stat(total_path, &statistics);
+  					file_length = statistics.st_size;
+  					printf("File size is %d\n", file_length);
+  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\n\r\n", content_type_out, file_length);
 					send(sock_connect, eg, strlen(eg), 0);
+					while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
+						send(sock_connect, buffer_data, file_bytes, 0);
+					}
+					fclose(fp);
 					shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
 					break;  					
@@ -304,10 +311,6 @@ int main (int argc, char * argv[] )
   					stat(total_path, &statistics);
   					file_length = statistics.st_size;
   					printf("File size is %d\n", file_length);
-  					//sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
-  					<html><head><title>Simple webserver</title></head>\r\n<body> \
-  					<p>A paragraph</p>\r\n \
-  					</body></html>\r\n", content_type_out);
   					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\n\r\n", content_type_out, file_length);
 					send(sock_connect, eg, strlen(eg), 0);
 					while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
@@ -330,6 +333,7 @@ int main (int argc, char * argv[] )
 			}*/
 
 			close(sock_connect);
+			exit(0);
 		}
 
 		else if (pid == -1){
