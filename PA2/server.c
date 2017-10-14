@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -18,8 +19,11 @@
 #define MAXSIZE 1024
 #define BACKLOG 10	//for listen function call
 #define MAXSIZE_WS  100   //for ws.conf file
+#define BUF_MAX_SIZE 10000
 
 int param;
+FILE *fp;
+struct stat statistics;
 FILE *fp;
 
 
@@ -58,6 +62,10 @@ int main (int argc, char * argv[] )
 	char extension[10];
 	char *extension_temp;
 	char content_type_out[20];
+	uint32_t file_length;
+	uint32_t file_bytes;
+	char buffer_data[BUF_MAX_SIZE];
+
 
 
 	if(argc != 1){
@@ -230,13 +238,12 @@ int main (int argc, char * argv[] )
 				printf("Request method: %s\n", rqst_method);
   				rqst_url = strtok (NULL, " ");
   				printf("Request URL: %s\n", rqst_url);
-  				printf("strlen is %ld\n", strlen(rqst_url));
   				strcpy(rqst_url_copy, rqst_url);
   				rqst_version = strtok (NULL, " \n");
   				printf("Request version: %s\n", rqst_version);
   				//strcpy(modified_path, rqst_url);
   				strcat(total_path, rqst_url);
-  				printf("Total path is: ");
+  				printf("File path : ");
   				puts(total_path);
 
   				//special case - when url is just '/' with strlen=1
@@ -256,7 +263,7 @@ int main (int argc, char * argv[] )
   				extension_temp = strtok(NULL, " ");
   				strcpy(extension, ".");
   				strcat(extension, extension_temp);
-  				printf("Extension is %s\n", extension);
+  				//printf("Extension is %s\n", extension);
 
   				//mapping - code to map the file extension to file content type 
   				int count_temp=0;
@@ -293,11 +300,21 @@ int main (int argc, char * argv[] )
   				}
   				else{
   					//if return is 0, file is present
-  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
+  					fp = fopen(total_path, "r");
+  					stat(total_path, &statistics);
+  					file_length = statistics.st_size;
+  					printf("File size is %d\n", file_length);
+  					//sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
   					<html><head><title>Simple webserver</title></head>\r\n<body> \
   					<p>A paragraph</p>\r\n \
   					</body></html>\r\n", content_type_out);
+  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\n\r\n", content_type_out, file_length);
 					send(sock_connect, eg, strlen(eg), 0);
+					while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
+						send(sock_connect, buffer_data, file_bytes, 0);
+					}
+					fclose(fp);
+					printf("Data sent\n");
 					shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
   				}

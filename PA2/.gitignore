@@ -2,6 +2,10 @@
 *.dll
 *.png
 *.jpg
+*.gif
+*.css
+*.js
+*.txt
 *.o
 *.so
 *.com
