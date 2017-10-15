@@ -67,7 +67,6 @@ int main (int argc, char * argv[] )
 	char buffer_data[BUF_MAX_SIZE];
 
 
-
 	if(argc != 1){
 		printf ("USAGE: ./server\n");
 		exit(1);
@@ -230,7 +229,6 @@ int main (int argc, char * argv[] )
 		if( (pid = fork()) == 0){
 
 			//close(sock_listen);
-
 			while((bytes_read = recv(sock_connect, client_msg, MAXSIZE, 0)) > 0){
 				//printf("Message received: %s\n", client_msg);
 				//puts(client_msg);
@@ -247,7 +245,7 @@ int main (int argc, char * argv[] )
   				puts(total_path);
 
   				//special case - when url is just '/' with strlen=1 -> return default index.html
-  				if(strlen(rqst_url)==1){
+  				if((strlen(rqst_url)==1) && (!strcmp(rqst_method, "GET"))){
   					strcpy(rqst_url, index0); 
   					strcat(total_path, rqst_url);
    					fp = fopen(total_path, "r");
@@ -294,34 +292,57 @@ int main (int argc, char * argv[] )
 
   				//checking if file is present in the path or not
   				file_presence = access (total_path, F_OK);
-  				if(file_presence){
+
+  				//for GET method
+  				if(file_presence && (!strcmp(rqst_method, "GET"))){
   					//file not present - throw 404
-  					sprintf(eg,"HTTP/1.1 404 OK\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
+  					sprintf(eg,"%s 404 Not Found\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
   					<html><head><title>Simple webserver</title></head>\r\n<body> \
   					<p><b>404: File not present</b></p>\r\n \
-  					</body></html>\r\n", content_type_out);
+  					</body></html>\r\n", rqst_version, content_type_out);
 					send(sock_connect, eg, strlen(eg), 0);
 					shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);  		
 					exit(1);			
   				}
-  				else{
+  				//for GET method
+  				else if(!file_presence && (!strcmp(rqst_method, "GET"))){
   					//if return is 0, file is present
   					fp = fopen(total_path, "r");
   					stat(total_path, &statistics);
   					file_length = statistics.st_size;
-  					printf("File size is %d\n", file_length);
-  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\n\r\n", content_type_out, file_length);
+  					sprintf(eg,"%s 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\n\r\n", rqst_version, content_type_out, file_length);
 					send(sock_connect, eg, strlen(eg), 0);
 					while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
 						send(sock_connect, buffer_data, file_bytes, 0);
 					}
 					fclose(fp);
-					printf("Data sent\n");
 					shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
   				}
-
+  				//for POST method, if extension is .html
+  				else if(!file_presence && (!strcmp(rqst_method, "POST")) && (!strcmp(extension, ".html"))){
+  					fp = fopen(total_path, "r");
+  					stat(total_path, &statistics);
+  					file_length = statistics.st_size;
+  					sprintf(eg,"%s 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\n\r\n<html><body><pre><h1>POST DATA</h1></pre>\r\n", 
+  						rqst_version, content_type_out, file_length+42);
+					send(sock_connect, eg, strlen(eg), 0);
+					while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
+						send(sock_connect, buffer_data, file_bytes, 0);
+					}
+					fclose(fp);
+					shutdown(sock_connect, 1);
+					memset(client_msg, 0, sizeof client_msg);
+  				}
+  				//for POST method, if extension is not .html
+  				else if(!strcmp(rqst_method, "POST") && strcmp(extension, ".html")){
+  					sprintf(eg,"%s 501 Not Implemented\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><body>501 Not implemented : file extension problem</body></html>\r\n", \
+  						rqst_version);
+					send(sock_connect, eg, strlen(eg), 0);
+					shutdown(sock_connect, 1);
+					memset(client_msg, 0, sizeof client_msg);
+  				}
 			}
 
 			/*if(bytes_read == 0){

@@ -2,7 +2,7 @@
 
 #calling the gcc compiler to build the code
 all: server.c
-	gcc server.c -pthread -o server
+	gcc server.c -o server
 
 #clean up the executable created
 clean:
