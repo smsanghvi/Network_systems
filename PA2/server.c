@@ -228,7 +228,7 @@ int main (int argc, char * argv[] )
 		
 		if( (pid = fork()) == 0){
 
-			//close(sock_listen);
+			close(sock_listen);
 			while((bytes_read = recv(sock_connect, client_msg, MAXSIZE, 0)) > 0){
 				//printf("Message received: %s\n", client_msg);
 				//puts(client_msg);
