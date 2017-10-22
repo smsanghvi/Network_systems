@@ -1,3 +1,28 @@
+/*****************************************************************************
+​ * ​ ​ Copyright​ ​ (C)​ ​ 2017​ ​ by​ ​ Snehal Sanghvi
+​ *
+​ * ​ ​  Users​ ​ are  ​ permitted​ ​ to​ ​ modify​ ​ this​ ​ and​ ​ use​ ​ it​ ​ to​ ​ learn​ ​ about​ ​ the​ ​ field​ ​ of​ ​ embedded
+​ * ​ ​ software.​ ​ Snehal Sanghvi​ ​ and​ ​ the​ ​ University​ ​ of​ ​ Colorado​ ​ are​ ​ not​ ​ liable​ ​ for​ ​ any​ ​ misuse​ ​ of​ ​ this​ ​ material.
+​ *
+*****************************************************************************/
+/**
+​ * ​ ​ @file​ ​ server.c
+​ * ​ ​ @brief​ ​ Source file implementing a webserver handling multiple incoming client
+ *			 browser requests using the Sockets API in C.
+​​ * ​ ​ @author​ ​ Snehal Sanghvi
+​ * ​ ​ @date​ ​ October ​ 22 ​ 2017
+​ * ​ ​ @version​ ​ 1.0
+​ *   @compiler used to process code: GCC compiler
+ *	 @functionality implemented: 
+ *	 Created a webserver that accepts multiple simulataneous requests from browsers. 
+ *	 Some features-
+ *		 1> Handled GET and POST requests
+ *		 2> Performed error handling and returned different error codes based on the request
+ *		 	Some of them being: 200, 400, 404, 500, 501
+ *		 3> Implemented pipelining to implement a timeout within which the socket will stary 
+ *		 	alive and listen for incoming requests
+​ */
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -15,9 +40,9 @@
 #include <memory.h>
 #include <string.h>
 
-#define _GNU_SOURCE		//for accept function
+#define _GNU_SOURCE		  //macro needed for accept function
 #define MAXSIZE 1024
-#define BACKLOG 10	//for listen function call
+#define BACKLOG 10		  //for listen function call
 #define MAXSIZE_WS  100   //for ws.conf file
 #define BUF_MAX_SIZE 10000
 
@@ -25,8 +50,11 @@ int param;
 FILE *fp;
 struct stat statistics;
 FILE *fp;
+
+//Couple of flags that will be monitored for certain conditions
 volatile sig_atomic_t flag = 1;
 volatile int flag1 = 1;
+
 
 /* The signal handler just clears the flag and re-enables itself. */
 void catch_alarm (int sig)
@@ -44,8 +72,7 @@ int main (int argc, char * argv[] )
 	int *sock_thread;  //socket descriptor
 	pid_t pid;
 	struct sockaddr_in local, remote;
-	char buffer[MAXSIZE];
-	char receive_buffer[MAXSIZE];
+	char buffer[MAXSIZE], receive_buffer[MAXSIZE];
 	socklen_t remote_len;
 	char client_msg[MAXSIZE];
 	char client_msg_post[MAXSIZE];
@@ -55,12 +82,10 @@ int main (int argc, char * argv[] )
 	char *rqst_version;  //for splitting string
 	char rqst_url_copy[20];
 	char *str;
-	char root_path[100];
-	char total_path[150];
-	char timeout_str[10];
+	char root_path[100], total_path[150];
+	char timeout_str[10], buf_ws[MAXSIZE_WS];
 	char content[50][50];
 	int port_int, timeout;
-	char buf_ws[MAXSIZE_WS];
 	int count = 0;
 	char index0[10];
 	char index1[10];
@@ -73,27 +98,24 @@ int main (int argc, char * argv[] )
 	char extension[10];
 	char *extension_temp;
 	char content_type_out[20];
-	uint32_t file_length;
-	uint32_t file_bytes;
+	uint32_t file_length, file_bytes;
 	char buffer_data[BUF_MAX_SIZE];
-	char *post_buffer_data;
-	char *substring;
+	char *post_buffer_data, *substring;
+	char modified_path[100];
 
-
+	//parse command line arguments
 	if(argc != 1){
 		printf ("USAGE: ./server\n");
 		exit(1);
 	}
 
 	//parse the ws.conf file and extract various parameters
-	if ((fp = fopen("ws.conf","r")) == NULL)		//check if ws.conf file exists
+	//check if ws.conf file exists
+	if ((fp = fopen("ws.conf","r")) == NULL)
 	{
 		printf("Config file ws.conf not found.\nExiting...\n");
 		exit(1);
 	}
-
-	char path_temp[200] = "/home/ssanghvi/Network_systems/PA2/server";
-	char modified_path[100];
 
 
 	while(!feof(fp)){
@@ -135,8 +157,6 @@ int main (int argc, char * argv[] )
 
 
 		if(count==4){
-			//printf("%c\n", buf_ws[0]);
-			//while(strcmp(buf_ws, "#connection timeout")){
 			while(buf_ws[0]!='#'){
 				str = strtok(buf_ws, " ");
 				strcpy(content[pos], str);
@@ -207,6 +227,7 @@ int main (int argc, char * argv[] )
 	printf("Socket created succesfully on server end.\n");
 
 	int temp = 1;
+	//function to be able to reuse socket numbers
 	setsockopt(sock_listen, SOL_SOCKET, SO_REUSEADDR, (const void *)&temp , sizeof(int)); 
 
 	//binding the port
@@ -243,10 +264,7 @@ int main (int argc, char * argv[] )
 		if( (pid = fork()) == 0){
 			printf("Process id is %d\n", getpid());
 			//close(sock_listen);
-			while(((bytes_read = recv(sock_connect, client_msg, MAXSIZE, 0)) > 0) && flag){
-				//printf("Message received: %s\n", client_msg);
-				//puts(client_msg);
-				
+			while(((bytes_read = recv(sock_connect, client_msg, MAXSIZE, 0)) > 0) && flag){			
 				if(strstr(client_msg, "Connection: keep-alive") != NULL){
 	  				//setting alarm timeout value
   					signal(SIGALRM, catch_alarm);
@@ -261,6 +279,7 @@ int main (int argc, char * argv[] )
 				
 				strcpy(client_msg_post, client_msg);
 
+				//extracting request method, requested resource (url) and request http version
 				rqst_method = strtok (client_msg," ");
 				printf("Request method: %s\n", rqst_method);
   				rqst_url = strtok (NULL, " ");
@@ -268,7 +287,6 @@ int main (int argc, char * argv[] )
   				strcpy(rqst_url_copy, rqst_url);
   				rqst_version = strtok (NULL, " \n");
   				printf("Request version: %s\n", rqst_version);
-  				//strcpy(modified_path, rqst_url);
   				strcat(total_path, rqst_url);
   				printf("File path : ");
   				puts(total_path); 
@@ -295,7 +313,6 @@ int main (int argc, char * argv[] )
 						send(sock_connect, buffer_data, file_bytes, 0);
 					}
 					fclose(fp);
-					//shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
 					break;  					
   				}
@@ -306,7 +323,7 @@ int main (int argc, char * argv[] )
   				extension_temp = strtok(NULL, " ");
   				strcpy(extension, ".");
   				strcat(extension, extension_temp);
-  				//printf("Extension is %s\n", extension);
+
 
   				//mapping - code to map the file extension to file content type 
   				int count_temp=0;
@@ -458,8 +475,8 @@ int main (int argc, char * argv[] )
 	}
 
 	printf("Closing and exiting...\n");
-
 	close(sock_listen);
-	//close(sock_connect);
+
+
 	return 0;
 }
