@@ -56,4 +56,4 @@ You should see a 501 not implemented error page in return.
 
 (EXTRA CREDIT) Support for POST method: Handled POST requests and sent back the POST DATA along with the requested file to the client.
 
-Using a combination of these strategies, I was able to implement a pipelined webserver capable of servicing multiple incoming browser requets.
+Using a combination of these strategies, I was able to implement a pipelined webserver capable of servicing multiple incoming browser requests.
