@@ -326,7 +326,6 @@ int main (int argc, char * argv[] )
   				else{
   					printf("Did not find content-type mapping.\n");
   				}
-  				
 
   				//checking if file is present in the path or not
   				file_presence = access (total_path, F_OK);
@@ -367,25 +366,20 @@ int main (int argc, char * argv[] )
   				}
   				//for POST method, if extension is .html
   				else if(!file_presence && (!strcmp(rqst_method, "POST")) && (!strcmp(extension, ".html"))){
-  					printf("In POST\n");
-  					//puts(client_msg_post);
-
   					//extracting data that you want to append
   					post_buffer_data = strstr(client_msg_post, "<html>");
   					printf("data: %s\n", post_buffer_data);
-
+  					int length_data = strlen(post_buffer_data);
   					fp = fopen(total_path, "r");
   					stat(total_path, &statistics);
   					file_length = statistics.st_size;
-  					sprintf(post_buffer_data,"HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %ld\r\n\r\n", 
-  						 content_type_out, strlen(post_buffer_data));
-					//send(sock_connect, eg, strlen(eg), 0);
-
+  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n", 
+  						 content_type_out, file_length+length_data);
+					send(sock_connect, eg, strlen(eg), 0);
+					send(sock_connect, post_buffer_data, strlen(post_buffer_data), 0);
 					while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
 						send(sock_connect, buffer_data, file_bytes, 0);
 					}
-					printf("Here!!!\n");
-					send(sock_connect, post_buffer_data, strlen(post_buffer_data), 0);
 					fclose(fp);
 					//shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
@@ -404,8 +398,6 @@ int main (int argc, char * argv[] )
   				memset(rqst_url, 0, sizeof rqst_url);
   				memset(total_path, 0, sizeof total_path);
   				strcpy(total_path, root_path);
-
-
 
 			}
 
