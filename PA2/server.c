@@ -330,19 +330,44 @@ int main (int argc, char * argv[] )
   				//checking if file is present in the path or not
   				file_presence = access (total_path, F_OK);
 
-  				//for GET method
-  				if(file_presence && (!strcmp(rqst_method, "GET"))){
-  					//file not present - throw 404
+  				//404 error handling : file not present - throw 404
+  				if(file_presence){
   					sprintf(eg,"%s 404 Not Found\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
-  					<html><head><title>Simple webserver</title></head>\r\n<body> \
-  					<p><b>404: File not present</b></p>\r\n \
+  					<html><head><title>Bad link!</title></head>\r\n<body> \
+  					<p><b>404: File not found. Reason - URL does not exist</b></p>\r\n \
   					</body></html>\r\n", rqst_version);
 					send(sock_connect, eg, strlen(eg), 0);
 					//shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);  		
+					memset(eg, 0, sizeof eg);
 					exit(1);			
   				}
-  				//for GET method
+  				//400 error handling : invalid http version - throw 400
+  				else if(strncmp(rqst_version, "HTTP/1.0", 8) && strncmp(rqst_version, "HTTP/1.1", 8)){
+  					sprintf(eg,"HTTP/1.1 400 Bad Request\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
+  					<html><head><title>Bad Request!</title></head>\r\n<body> \
+  					<p><b>400: Bad Request. Reason - Invalid HTTP-version</b></p>\r\n \
+  					</body></html>\r\n");
+					send(sock_connect, eg, strlen(eg), 0);
+					//shutdown(sock_connect, 1);
+					memset(client_msg, 0, sizeof client_msg);  
+					memset(eg, 0, sizeof eg);		
+					exit(1);
+  				}
+  				//501 error handling : not implemented methods - throw 501
+  				//Not implemented HEAD, DELETE, OPTIONS
+  				else if(strcmp(rqst_method, "GET") && strcmp(rqst_method, "POST")){
+  					sprintf(eg,"%s 501 Not Implemented\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
+  					<html><head><title>Not Implemented method</title></head>\r\n<body> \
+  					<p><b>501: Not Implemented method on server</b></p>\r\n \
+  					</body></html>\r\n", rqst_version);
+					send(sock_connect, eg, strlen(eg), 0);
+					//shutdown(sock_connect, 1);
+					memset(client_msg, 0, sizeof client_msg);  
+					memset(eg, 0, sizeof eg);		
+					exit(1);
+  				}
+  				//200 success code for GET method
   				else if(!file_presence && (!strcmp(rqst_method, "GET"))){
   					//if return is 0, file is present
   					fp = fopen(total_path, "r");
@@ -392,7 +417,18 @@ int main (int argc, char * argv[] )
 					shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
   				}
-
+  				//500 internal server error : could not allocate enough memory
+  				else{
+  					sprintf(eg,"%s 500 Internal Server Error\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
+  					<html><head><title>Aww, snap!</title></head>\r\n<body> \
+  					<p><b>500: Internal Server Error - Cannot allocate memory</b></p>\r\n \
+  					</body></html>\r\n", rqst_version);
+					send(sock_connect, eg, strlen(eg), 0);
+					//shutdown(sock_connect, 1);
+					memset(client_msg, 0, sizeof client_msg);  
+					memset(eg, 0, sizeof eg);		
+					exit(1);
+  				}
 
   				//the next 3 statements are a workaround around the previous value being retained problem
   				memset(rqst_url, 0, sizeof rqst_url);
