@@ -25,6 +25,16 @@ int param;
 FILE *fp;
 struct stat statistics;
 FILE *fp;
+volatile sig_atomic_t flag = 1;
+volatile int flag1 = 1;
+
+/* The signal handler just clears the flag and re-enables itself. */
+void catch_alarm (int sig)
+{
+  flag = 0;
+  printf("Time out.\n");
+  signal (sig, catch_alarm);
+}
 
 
 int main (int argc, char * argv[] )
@@ -38,6 +48,7 @@ int main (int argc, char * argv[] )
 	char receive_buffer[MAXSIZE];
 	socklen_t remote_len;
 	char client_msg[MAXSIZE];
+	char client_msg_post[MAXSIZE];
 	int bytes_read;
 	char *rqst_method;  //for splitting string
 	char *rqst_url;  	//for splitting string
@@ -65,6 +76,8 @@ int main (int argc, char * argv[] )
 	uint32_t file_length;
 	uint32_t file_bytes;
 	char buffer_data[BUF_MAX_SIZE];
+	char *post_buffer_data;
+	char *substring;
 
 
 	if(argc != 1){
@@ -225,13 +238,29 @@ int main (int argc, char * argv[] )
 		}	
 
 		printf("\n\nAccepted a connection from %s\n", inet_ntoa(remote.sin_addr));
+
 		
 		if( (pid = fork()) == 0){
-
-			close(sock_listen);
-			while((bytes_read = recv(sock_connect, client_msg, MAXSIZE, 0)) > 0){
+			printf("Process id is %d\n", getpid());
+			//close(sock_listen);
+			while(((bytes_read = recv(sock_connect, client_msg, MAXSIZE, 0)) > 0) && flag){
 				//printf("Message received: %s\n", client_msg);
 				//puts(client_msg);
+				
+				if(strstr(client_msg, "Connection: keep-alive") != NULL){
+	  				//setting alarm timeout value
+  					signal(SIGALRM, catch_alarm);
+  					alarm(timeout);
+  					flag1 = 0;
+  					printf("Request to keep connection alive.\n");
+  					printf("Timeout set for %d seconds.\n", timeout);
+				}
+				else{
+					flag1 = 1;
+				}
+				
+				strcpy(client_msg_post, client_msg);
+
 				rqst_method = strtok (client_msg," ");
 				printf("Request method: %s\n", rqst_method);
   				rqst_url = strtok (NULL, " ");
@@ -242,7 +271,8 @@ int main (int argc, char * argv[] )
   				//strcpy(modified_path, rqst_url);
   				strcat(total_path, rqst_url);
   				printf("File path : ");
-  				puts(total_path);
+  				puts(total_path); 
+
 
   				//special case - when url is just '/' with strlen=1 -> return default index.html
   				if((strlen(rqst_url)==1) && (!strcmp(rqst_method, "GET"))){
@@ -252,16 +282,24 @@ int main (int argc, char * argv[] )
   					stat(total_path, &statistics);
   					file_length = statistics.st_size;
   					printf("File size is %d\n", file_length);
-  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\n\r\n", content_type_out, file_length);
+  					if(!flag1){
+	  					sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\nConnection: Keep-alive\r\n\r\n", content_type_out, file_length);
+  						printf("Connection: keep alive detected\n");
+  					}
+					else{
+						sprintf(eg,"HTTP/1.1 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\nConnection: Close\r\n\r\n", content_type_out, file_length);						
+						printf("Connection: keep alive not detected\n");
+					}  					
 					send(sock_connect, eg, strlen(eg), 0);
 					while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
 						send(sock_connect, buffer_data, file_bytes, 0);
 					}
 					fclose(fp);
-					shutdown(sock_connect, 1);
+					//shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
 					break;  					
   				}
+
 
   				//get extension
   				strtok(rqst_url_copy, ".");
@@ -296,12 +334,12 @@ int main (int argc, char * argv[] )
   				//for GET method
   				if(file_presence && (!strcmp(rqst_method, "GET"))){
   					//file not present - throw 404
-  					sprintf(eg,"%s 404 Not Found\r\nContent-Type: %s; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
+  					sprintf(eg,"%s 404 Not Found\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n \
   					<html><head><title>Simple webserver</title></head>\r\n<body> \
   					<p><b>404: File not present</b></p>\r\n \
-  					</body></html>\r\n", rqst_version, content_type_out);
+  					</body></html>\r\n", rqst_version);
 					send(sock_connect, eg, strlen(eg), 0);
-					shutdown(sock_connect, 1);
+					//shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);  		
 					exit(1);			
   				}
@@ -311,28 +349,45 @@ int main (int argc, char * argv[] )
   					fp = fopen(total_path, "r");
   					stat(total_path, &statistics);
   					file_length = statistics.st_size;
-  					sprintf(eg,"%s 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\n\r\n", rqst_version, content_type_out, file_length);
+  					if(!flag1){
+	  					sprintf(eg,"%s 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\nConnection: Keep-alive\r\n\r\n", rqst_version, content_type_out, file_length);
+  						printf("Connection: keep alive detected\n");
+  					}
+					else{
+						sprintf(eg,"%s 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\nConnection: Close\r\n\r\n", rqst_version, content_type_out, file_length);						
+						printf("Connection: keep alive not detected\n");
+					}
 					send(sock_connect, eg, strlen(eg), 0);
 					while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
 						send(sock_connect, buffer_data, file_bytes, 0);
 					}
 					fclose(fp);
-					shutdown(sock_connect, 1);
+					//shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
   				}
   				//for POST method, if extension is .html
   				else if(!file_presence && (!strcmp(rqst_method, "POST")) && (!strcmp(extension, ".html"))){
+  					printf("In POST\n");
+  					//puts(client_msg_post);
+
+  					//extracting data that you want to append
+  					post_buffer_data = strstr(client_msg_post, "<html>");
+  					printf("data: %s\n", post_buffer_data);
+
   					fp = fopen(total_path, "r");
   					stat(total_path, &statistics);
   					file_length = statistics.st_size;
-  					sprintf(eg,"%s 200 OK\r\nContent-Type: %s; charset=UTF-8\r\nContent-Length: %d\r\n\r\n<html><body><pre><h1>POST DATA</h1></pre>\r\n", 
-  						rqst_version, content_type_out, file_length+42);
-					send(sock_connect, eg, strlen(eg), 0);
+  					sprintf(post_buffer_data,"HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %ld\r\n\r\n", 
+  						 content_type_out, strlen(post_buffer_data));
+					//send(sock_connect, eg, strlen(eg), 0);
+
 					while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
 						send(sock_connect, buffer_data, file_bytes, 0);
 					}
+					printf("Here!!!\n");
+					send(sock_connect, post_buffer_data, strlen(post_buffer_data), 0);
 					fclose(fp);
-					shutdown(sock_connect, 1);
+					//shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
   				}
   				//for POST method, if extension is not .html
@@ -343,22 +398,27 @@ int main (int argc, char * argv[] )
 					shutdown(sock_connect, 1);
 					memset(client_msg, 0, sizeof client_msg);
   				}
+
+
+  				//the next 3 statements are a workaround around the previous value being retained problem
+  				memset(rqst_url, 0, sizeof rqst_url);
+  				memset(total_path, 0, sizeof total_path);
+  				strcpy(total_path, root_path);
+
+
+
 			}
 
-			/*if(bytes_read == 0){
-				printf("Client got disconnected.\n");
-			}
-	
-			else if(bytes_read == -1){
-				printf("Recv failed.\n");
-			}*/
+			flag = 1;
+			flag1 = 1; 		
+			printf("Out of loop...\n");
 
 			close(sock_connect);
 			exit(0);
 		}
 
 		else if (pid == -1){
-			printf("Could not fork. Exitting...\n");
+			printf("Could not fork. Exiting...\n");
 			exit(1);
 		}
 
