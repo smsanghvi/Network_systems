@@ -18,10 +18,9 @@
 #define MAX_CONF_SIZE 1000
 #define NO_OF_CONNECTIONS 4
 
-static char folder_1[10], folder_2[10];
-static char folder_3[10], folder_4[10];
-static char ip1[20], ip2[20], ip3[20], ip4[20];
-int port1, port2, port3, port4;
+static char folder[NO_OF_CONNECTIONS][10];
+static char ip[NO_OF_CONNECTIONS][20];
+int port[NO_OF_CONNECTIONS];
 char username[20];
 char password[20];
 char options[20];
@@ -41,28 +40,28 @@ void parse_conf(FILE *fp){
 		str = strtok(buf_conf, " ");
 		switch(count){
 			case 0:	str = strtok(NULL, " ");
-					strcpy(folder_1, str);
+					strcpy(folder[0], str);
 					str = strtok(NULL, ":");
-					strcpy(ip1, str);
-					port1 = atoi(strtok(NULL, " "));
+					strcpy(ip[0], str);
+					port[0] = atoi(strtok(NULL, " "));
 					break;
 			case 1:	str = strtok(NULL, " ");
-					strcpy(folder_2, str);
+					strcpy(folder[1], str);
 					str = strtok(NULL, ":");
-					strcpy(ip2, str);
-					port2 = atoi(strtok(NULL, " "));
+					strcpy(ip[1], str);
+					port[1] = atoi(strtok(NULL, " "));
 					break;
 			case 2:	str = strtok(NULL, " ");
-					strcpy(folder_3, str);
+					strcpy(folder[2], str);
 					str = strtok(NULL, ":");
-					strcpy(ip3, str);
-					port3 = atoi(strtok(NULL, " "));
+					strcpy(ip[2], str);
+					port[2] = atoi(strtok(NULL, " "));
 					break;
 			case 3:	str = strtok(NULL, " ");
-					strcpy(folder_4, str);
+					strcpy(folder[3], str);
 					str = strtok(NULL, ":");
-					strcpy(ip4, str);
-					port4 = atoi(strtok(NULL, " "));
+					strcpy(ip[3], str);
+					port[3] = atoi(strtok(NULL, " "));
 					break;					
 			case 4: str = strtok(NULL, " \n");
 					strcpy(username, str);
@@ -96,7 +95,7 @@ int main(int argc, char **argv){
  	}
 
  	//creating multiple sockets
- 	if(create_sockets()){
+ 	/*if(create_sockets()){
  		printf("Sockets not created. Exiting...\n");
  		exit(1);
  	}
@@ -105,7 +104,7 @@ int main(int argc, char **argv){
  	if ((sockfd = socket (AF_INET, SOCK_STREAM, 0)) <0) {
   		perror("Problem in creating the socket");
   		exit(1);
- 	}
+ 	}*/
 
  	//opening the conf file
 	FILE *fp = fopen(argv[1], "r");
@@ -114,11 +113,11 @@ int main(int argc, char **argv){
 	fclose(fp);
 
 	//Creation of the socket
- 	memset(&servaddr, 0, sizeof(servaddr));
+ 	/*memset(&servaddr, 0, sizeof(servaddr));
  	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr= inet_addr(argv[1]);
  	servaddr.sin_port =  htons(SERV_PORT); //convert to big-endian order
-
+*/
 
 	printf("\n-------------------------------------");
 	printf("\nEnter one of these options:\n");
@@ -129,7 +128,7 @@ int main(int argc, char **argv){
 	//getting input from user
 	fgets(options, 20, stdin);
 
-	while(1){
+	/*while(1){
 		if  (!strncmp(options, "LIST ", 5))
 			menu_id = 0;
 		else if (!strncmp(options, "PUT ", 4))
@@ -153,24 +152,24 @@ int main(int argc, char **argv){
 			case 3:
 					printf("Enter option correctly.\n");		
 		}
-	}
+	}*/
 
 
-	/*printf("Folder 1 is %s\n", folder_1);
-	printf("Folder 2 is %s\n", folder_2);
-	printf("Folder 3 is %s\n", folder_3);
-	printf("Folder 4 is %s\n", folder_4);
-	printf("IP 1 is %s\n", ip1);
-	printf("IP 2 is %s\n", ip2);
-	printf("IP 3 is %s\n", ip3);
-	printf("IP 4 is %s\n", ip4);
-	printf("Port 1 is %d\n", port1);
-	printf("Port 2 is %d\n", port2);
-	printf("Port 3 is %d\n", port3);
-	printf("Port 4 is %d\n", port4);
+	printf("Folder 1 is %s\n", folder[0]);
+	printf("Folder 2 is %s\n", folder[1]);
+	printf("Folder 3 is %s\n", folder[2]);
+	printf("Folder 4 is %s\n", folder[3]);
+	printf("IP 1 is %s\n", ip[0]);
+	printf("IP 2 is %s\n", ip[1]);
+	printf("IP 3 is %s\n", ip[2]);
+	printf("IP 4 is %s\n", ip[3]);
+	printf("Port 1 is %d\n", port[0]);
+	printf("Port 2 is %d\n", port[1]);
+	printf("Port 3 is %d\n", port[2]);
+	printf("Port 4 is %d\n", port[3]);
 	printf("Username is %s\n", username);
 	printf("Password is %s\n", password);
-	printf("Parsing complete.\n\n");*/
+	printf("Parsing complete.\n\n");
 
 	return 0;
 }
