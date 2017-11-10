@@ -38,7 +38,7 @@ You should a server response having the POSTDATA header and the message you type
 
 >To test for unsuccessful GET and error code of 400, type in an invalid http version(like HTTP/1.5) on client side, for example, go on to telnet and type-
 $telnet 127.0.0.1 8888
-$POST /test.html HTTP/1.5\r\nConnection: Keep-alive\r\n\r\n<html><body><pre><h1>POSTDATA</h1></pre>This is a POST message</body></html>
+$GET /test.html HTTP/1.5\r\nConnection: Keep-alive\r\n\r\n<html><body><pre><h1>POSTDATA</h1></pre>This is a POST message</body></html>
 
 You should see a 400 error page in return.
 
