@@ -16,6 +16,7 @@
 #include <string.h>
 
 #define MAX_CONF_SIZE 1000
+#define BUFFER_SIZE 1000
 #define NO_OF_CONNECTIONS 4
 
 static char folder[NO_OF_CONNECTIONS][10];
@@ -75,18 +76,38 @@ void parse_conf(FILE *fp){
 }
 
 
+//creating the 4 sockets, populating them and connecting to server
 int create_sockets(){
- 	int i;
+	int i;
  	for(i = 0; i < NO_OF_CONNECTIONS; i++){
- 		if ((sockfd[i] = socket(AF_INET, SOCK_STREAM, 0)) <0) {
+ 		//making socket function calls
+ 		if ((sockfd[i] = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
   			perror("Problem in creating the socket");
   			return 1;
  		}	
+
+ 		//populating the structures
+ 		memset(&servaddr[i], 0, sizeof(servaddr[i]));
+ 		servaddr[i].sin_family = AF_INET;
+		servaddr[i].sin_addr.s_addr= inet_addr(ip[i]);
+ 		servaddr[i].sin_port =  htons(port[i]); //convert to big-endian order
+
+ 		//Connection of the client to the socket 
+ 		if (connect(sockfd[i], (struct sockaddr *) &servaddr[i], sizeof(servaddr[i])) == -1) {
+  			perror("Problem in connecting to the server");
+  			return 1;
+ 		}
  	}
+
  	return 0;
 }
 
+
 int main(int argc, char **argv){
+	int i;
+	char buffer[BUFFER_SIZE];
+	int bytes_read[4];
+ 	char resp[4][100];
 
 	//basic check for the arguments
  	if (argc != 2) {
@@ -94,30 +115,18 @@ int main(int argc, char **argv){
   		exit(1);
  	}
 
+ 	//opening the conf file
+	FILE *fp = fopen(argv[1], "r");
+	printf("Parsing the client configuration file...\n");
+	parse_conf(fp);
+	fclose(fp);
+
  	//creating multiple sockets
- 	/*if(create_sockets()){
+ 	if(create_sockets()){
  		printf("Sockets not created. Exiting...\n");
  		exit(1);
  	}
 
- 	//Create a socket for the client
- 	if ((sockfd = socket (AF_INET, SOCK_STREAM, 0)) <0) {
-  		perror("Problem in creating the socket");
-  		exit(1);
- 	}*/
-
- 	//opening the conf file
-	FILE *fp = fopen(argv[1], "r");
-	printf("Parsing the client configuration file ...\n");
-	parse_conf(fp);
-	fclose(fp);
-
-	//Creation of the socket
- 	/*memset(&servaddr, 0, sizeof(servaddr));
- 	servaddr.sin_family = AF_INET;
-	servaddr.sin_addr.s_addr= inet_addr(argv[1]);
- 	servaddr.sin_port =  htons(SERV_PORT); //convert to big-endian order
-*/
 
 	printf("\n-------------------------------------");
 	printf("\nEnter one of these options:\n");
@@ -128,8 +137,8 @@ int main(int argc, char **argv){
 	//getting input from user
 	fgets(options, 20, stdin);
 
-	/*while(1){
-		if  (!strncmp(options, "LIST ", 5))
+	while(1){
+		if  (!strncmp(options, "LIST", 4))
 			menu_id = 0;
 		else if (!strncmp(options, "PUT ", 4))
 			menu_id = 1;
@@ -141,21 +150,55 @@ int main(int argc, char **argv){
 		switch(menu_id){
 			//LIST
 			case 0:
+					printf("It is LIST option.\n");
 					break;
 			//PUT
 			case 1:
+					printf("It is PUT option.\n");
+					//sending out user credentials
+					for(i=0; i<NO_OF_CONNECTIONS; i++){					
+						send(sockfd[i], username, strlen(username), 0);
+					}
+					for(i=0; i<NO_OF_CONNECTIONS; i++){					
+						send(sockfd[i], "\n", 2, 0);
+					}
+					for(i=0; i<NO_OF_CONNECTIONS; i++){					
+						send(sockfd[i], password, strlen(password), 0);
+					}
+					//waiting for correct credentials reply from servers
+					for(i=0; i<NO_OF_CONNECTIONS; i++){					
+						while((bytes_read[i] = recv(sockfd[i], resp[i], BUFFER_SIZE, 0)) > 0){}	
+						if(!strcmp(resp[i], "Authentication successful!"))
+							printf("Authentication successful with server %d!\n", i);
+						else{
+							printf("Authentication failed with server %d\n", i);
+							exit(1);
+						}
+					}
+
+
+					/*for(i=0; i<NO_OF_CONNECTIONS; i++){
+						//sending out the user entered options
+						send(sockfd[i], options, strlen(options), 0);
+						while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
+							send(sock_connect, buffer_data, file_bytes, 0);
+						}
+					}*/
 					break;
 			//GET
 			case 2:
+					printf("It is GET option.\n");
 					break;
 			//default
 			case 3:
 					printf("Enter option correctly.\n");		
 		}
-	}*/
 
+		break;
+	}
 
-	printf("Folder 1 is %s\n", folder[0]);
+	//verbose file parsing
+	/*printf("Folder 1 is %s\n", folder[0]);
 	printf("Folder 2 is %s\n", folder[1]);
 	printf("Folder 3 is %s\n", folder[2]);
 	printf("Folder 4 is %s\n", folder[3]);
@@ -169,7 +212,7 @@ int main(int argc, char **argv){
 	printf("Port 4 is %d\n", port[3]);
 	printf("Username is %s\n", username);
 	printf("Password is %s\n", password);
-	printf("Parsing complete.\n\n");
+	printf("Parsing complete.\n\n");*/
 
 	return 0;
 }
