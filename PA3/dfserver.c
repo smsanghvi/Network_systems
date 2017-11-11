@@ -28,6 +28,31 @@ char folder[20];
 int port_no;
 
 
+char *return_directory(char *p, char *username){
+	DIR* dir = opendir(username);
+	if (dir)
+	{
+    	closedir(dir);
+    	return username;
+	}
+	else if (ENOENT == errno)
+	{
+    	/* Directory does not exist. */
+    	char *temp;
+    	char cmd_folder[100];
+    	sprintf(cmd_folder, "cd %s && mkdir %s", p, username);
+    	system(cmd_folder);
+    	return username;
+	}
+	else
+	{	
+		/* opendir() failed for some other reason. */
+		printf("Opendir() failed.\n");
+		return NULL;
+	}	
+}
+
+
 int main(int argc, char **argv){
 
 	socklen_t remote_len;
@@ -50,7 +75,7 @@ int main(int argc, char **argv){
 	int recv_filelength;
 	int recv_filename_length;
 	char filename[15];
-	char filename_copy[15];	
+	char buff[30];	
 	char part_file_content[1000];
 	char part_file_name[20];
 	int folder_length;
@@ -140,8 +165,8 @@ int main(int argc, char **argv){
 			temp_str = strtok(NULL, " \n");	
 			strcpy(recv_password, temp_str);	
 
-			printf("Username is %s\n", recv_username);
-			printf("Password is %s\n", recv_password);
+			//printf("Username is %s\n", recv_username);
+			//printf("Password is %s\n", recv_password);
 
 			if((fp = fopen("dfs.conf", "r")) == NULL){
 				printf("Config file not found.\n");
@@ -152,19 +177,19 @@ int main(int argc, char **argv){
 				fgets(dfs_file_content, 100, fp);
 				if(strstr(dfs_file_content, recv_username) != NULL) {
 					if(strstr(dfs_file_content, recv_password) != NULL){
-						printf("Credentials match!\n");
+						printf("\nCredentials match!\n");
 						no = 1;
 						send(sock_connect, &no, sizeof(int), 0);
 						break;						
 					}
 					else{
-						printf("Credentials dont match!\n");
+						printf("\nCredentials dont match!\n");
 						no = 0;
 						send(sock_connect, &no, sizeof(int), 0);
 					}
 				}
 				else{
-					printf("Credentials do not match!\n");
+					printf("\nCredentials do not match!\n");
 					no = 0;
 					send(sock_connect, &no, sizeof(int), 0);					
 				}
@@ -186,44 +211,47 @@ int main(int argc, char **argv){
 			DIR* dir = opendir(p);
 			if (dir)
 			{
-    			printf("Directory exists %s\n", p);
+    			//printf("Directory exists %s\n", p);
     			closedir(dir);
 			}
 			else if (ENOENT == errno)
 			{
     			/* Directory does not exist. */
     			sprintf(cmd_folder, "mkdir %s", p);
-    			printf("Modified cmd is %s\n", cmd_folder);
+    			//printf("Modified cmd is %s\n", cmd_folder);
     			system(cmd_folder);
-    			printf("Directory %s does not exist.\n", p);
+    			//printf("Directory %s does not exist.\n", p);
 			}
 			else
 			{
+				/* opendir() failed for some other reason. */
 				printf("Opendir() failed.\n");
-    			/* opendir() failed for some other reason. */
+				continue;
 			}
 
 			//receiving length of file
 			recv(sock_connect, &recv_filelength, sizeof(int), 0);
-			printf("Received length is %d\n", recv_filelength);
+			//printf("Received length is %d\n", recv_filelength);
 			recv(sock_connect, &recv_filename_length, sizeof(int), 0);
-			printf("Received filename length is %d\n", recv_filename_length);
+			//printf("Received filename length is %d\n", recv_filename_length);
 			recv(sock_connect, filename, recv_filename_length, 0);
 			printf("Filename received is %s\n", filename);
-			strcpy(filename_copy, filename);
 			memset(part_file_content, 0, sizeof(part_file_content));
 			recv(sock_connect, part_file_content, recv_filelength, 0);
 			//printf("Part file name content is %s\n", part_file_content);			
-			sprintf(part_file_name, ".%s.%d", filename_copy, unique_no);
+			sprintf(part_file_name, ".%s.%d", filename, unique_no);
 			printf("part file name is %s\n", part_file_name);
 			strcat(part_file_content, "\0");
 
-			//opening the file
-			//giving relative path : DFS1/.foo.txt.1 and opening that by fopen
-			sprintf(cmd_folder, "%s/%s", p, part_file_name);
-			fp1 = fopen(cmd_folder, "w");
+
+			sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_username));
+			system(buff);
+			sprintf(buff, "%s/%s/%s", p, recv_username, part_file_name);
+			fp1 = fopen(buff, "w");
 			fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
 			fclose(fp1);
+			printf("At the end.\n");
+
 
 		}
 	}
