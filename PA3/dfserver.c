@@ -30,13 +30,18 @@ int main(int argc, char **argv){
 
 	socklen_t remote_len;
 	pid_t pid;
-	int bytes_read;
-	int temp = 1;
+	int bytes_read, no, temp = 1;
+	char *temp_str;
+	int recv_authenticate_length;
+	char authenticate_str[40];
 	char client_msg[MAXSIZE];
 	char local_username[20];
 	char local_password[20];
 	char recv_username[20];
 	char recv_password[20];
+	char dfs_file_content[100];
+	char dfs_file_content_copy[100];
+	FILE *fp;
 
 	//parse command line arguments
 	if(argc != 3){
@@ -65,6 +70,8 @@ int main(int argc, char **argv){
 
 	printf("Socket created succesfully on server end.\n");
 
+	//function to be able to reuse socket numbers
+	setsockopt(sock_listen, SOL_SOCKET, SO_REUSEADDR, (const void *)&temp , sizeof(int)); 
 
 	//binding the port
 	if( bind(sock_listen, (struct sockaddr *)&local, sizeof(local)) == -1)
@@ -95,18 +102,60 @@ int main(int argc, char **argv){
 		}	
 
 		printf("\n\nAccepted a connection from %s\n", inet_ntoa(remote.sin_addr));
-		char temp[10];
+
 		if( (pid = fork()) == 0){
 			printf("Process id is %d\n", getpid());
 			//close(sock_listen);
 			memset(recv_username, 0, strlen(recv_username));
-			memset(temp, 0, strlen(temp));
 			memset(recv_password, 0, strlen(recv_password));
-			if((bytes_read = recv(sock_connect, recv_username, MAXSIZE, 0)) > 0){}
-				printf("Received username is %s\n", recv_username);
-			recv(sock_connect, temp, 10, 0);
-			if((bytes_read = recv(sock_connect, recv_password, MAXSIZE, 0)) > 0){}
-				printf("Received password is %s\n", recv_password);			
+			memset(authenticate_str, 0, strlen(authenticate_str));
+
+			//receiving the length of the string having username and password
+			if((bytes_read = recv(sock_connect, &recv_authenticate_length, sizeof(int), 0)) > 0){}
+
+			//receiving the string having username and password	
+			if((bytes_read = recv(sock_connect, authenticate_str, recv_authenticate_length, 0)) > 0){}
+
+
+			temp_str = strtok(authenticate_str, " ");
+			strcpy(recv_username, temp_str);
+
+			//snipping off the \n in the first character of recv_username
+			memmove(recv_username, recv_username + 1, strlen(recv_username));
+			temp_str = strtok(NULL, " \n");	
+			strcpy(recv_password, temp_str);	
+
+			printf("Username is %s\n", recv_username);
+			printf("Password is %s\n", recv_password);
+
+			if((fp = fopen("dfs.conf", "r")) == NULL){
+				printf("Config file not found.\n");
+				exit(1);
+			}
+
+			while(!feof(fp)){
+				fgets(dfs_file_content, 100, fp);
+				if(strstr(dfs_file_content, recv_username) != NULL) {
+					if(strstr(dfs_file_content, recv_password) != NULL){
+						printf("Credentials match!\n");
+						no = 1;
+						send(sock_connect, &no, sizeof(int), 0);
+						break;						
+					}
+					else{
+						printf("Credentials dont match!\n");
+						no = 0;
+						send(sock_connect, &no, sizeof(int), 0);
+					}
+				}
+				else{
+					printf("Credentials do not match!\n");
+					no = 0;
+					send(sock_connect, &no, sizeof(int), 0);					
+				}
+			}
+			fclose(fp);
+
 		}
 	}
 

@@ -76,6 +76,16 @@ void parse_conf(FILE *fp){
 }
 
 
+//obtains file length in bytes
+int file_length(FILE *fp)
+{
+    fseek(fp, 0, SEEK_END);
+    int length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    return length;
+}
+
+
 //creating the 4 sockets, populating them and connecting to server
 int create_sockets(){
 	int i;
@@ -106,8 +116,15 @@ int create_sockets(){
 int main(int argc, char **argv){
 	int i;
 	char buffer[BUFFER_SIZE];
+	char buffer_part[NO_OF_CONNECTIONS][BUFFER_SIZE];
 	int bytes_read[4];
- 	char resp[4][100];
+ 	int resp[4];
+ 	int length_authenticate;
+ 	char concat_authenticate[40];
+ 	char *temp_str;
+ 	char filename[20];
+ 	int length_of_file;
+ 	int length_part_file[NO_OF_CONNECTIONS];
 
 	//basic check for the arguments
  	if (argc != 2) {
@@ -121,6 +138,14 @@ int main(int argc, char **argv){
 	parse_conf(fp);
 	fclose(fp);
 
+	strcpy(concat_authenticate, "\n");
+	strcat(concat_authenticate, username);
+	strcat(concat_authenticate, " ");
+	strcat(concat_authenticate, password);
+	length_authenticate = strlen(concat_authenticate);
+	printf("Concat is %s\n", concat_authenticate);
+	printf("Strlen is %d\n", length_authenticate);
+
  	//creating multiple sockets
  	if(create_sockets()){
  		printf("Sockets not created. Exiting...\n");
@@ -132,7 +157,7 @@ int main(int argc, char **argv){
 	printf("\nEnter one of these options:\n");
 	printf("LIST\n");	
 	printf("PUT [file_name]\n");	
-	printf("GET [file_name]\n");	
+	printf("GET [file_name]\n\n");	
 
 	//getting input from user
 	fgets(options, 20, stdin);
@@ -154,36 +179,61 @@ int main(int argc, char **argv){
 					break;
 			//PUT
 			case 1:
-					printf("It is PUT option.\n");
+					printf("\n");
 					//sending out user credentials
 					for(i=0; i<NO_OF_CONNECTIONS; i++){					
-						send(sockfd[i], username, strlen(username), 0);
+						send(sockfd[i], &length_authenticate, sizeof(int), 0);
 					}
+
 					for(i=0; i<NO_OF_CONNECTIONS; i++){					
-						send(sockfd[i], "\n", 2, 0);
+						send(sockfd[i], concat_authenticate, length_authenticate, 0);
 					}
-					for(i=0; i<NO_OF_CONNECTIONS; i++){					
-						send(sockfd[i], password, strlen(password), 0);
-					}
+
 					//waiting for correct credentials reply from servers
 					for(i=0; i<NO_OF_CONNECTIONS; i++){					
-						while((bytes_read[i] = recv(sockfd[i], resp[i], BUFFER_SIZE, 0)) > 0){}	
-						if(!strcmp(resp[i], "Authentication successful!"))
-							printf("Authentication successful with server %d!\n", i);
+						if((bytes_read[i] = recv(sockfd[i], &resp[i], sizeof(int), 0)) > 0){}	
+						if(resp[i] == 1)
+							printf("Authentication successful with server %d\n", i);
 						else{
 							printf("Authentication failed with server %d\n", i);
 							exit(1);
 						}
 					}
 
+					temp_str = strtok(options, " ");
+					temp_str = strtok(NULL, " \n");
+					strcpy(filename, temp_str);
 
-					/*for(i=0; i<NO_OF_CONNECTIONS; i++){
-						//sending out the user entered options
-						send(sockfd[i], options, strlen(options), 0);
-						while((file_bytes = fread(buffer_data, sizeof(char), BUF_MAX_SIZE, fp)) > 0){
-							send(sock_connect, buffer_data, file_bytes, 0);
+					//check if file exists
+					if( access( filename, F_OK ) == -1 ) {
+						printf("File does not exist.\nExiting...");
+						exit(1);
+					}
+
+					//obtaining file length in bytes
+					fp = fopen(filename, "r");
+					length_of_file = file_length(fp);
+					printf("Length of %s is %d\n", filename, length_of_file);
+					fclose(fp);
+
+					int sum = 0;
+
+					//setting the lengths of part files
+					for(i = 0; i < NO_OF_CONNECTIONS; i++){
+						length_part_file[i] = length_of_file/NO_OF_CONNECTIONS;
+						if(i < (NO_OF_CONNECTIONS)){
+							sum += length_part_file[i];
 						}
-					}*/
+						length_part_file[NO_OF_CONNECTIONS - 1] += (length_of_file - sum); 
+					}
+	
+
+					for(i = 0; i < NO_OF_CONNECTIONS; i++){
+						length_part_file[i] = fread(buffer_part[i], sizeof(char), length_part_file[i], fp);
+						printf("Length of part file %d is %d\n", i, length_part_file[i]);
+						send(sockfd[i], buffer_part[i], length_part_file[i] + 1, 0);
+					}
+
 					break;
 			//GET
 			case 2:
