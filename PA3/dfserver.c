@@ -16,6 +16,7 @@
 #include <string.h>
 
 #define MAX_CONF_SIZE 1000
+#define NO_OF_CONNECTIONS 4
 #define MAXSIZE 1000
 #define BACKLOG 10
 
@@ -39,9 +40,18 @@ int main(int argc, char **argv){
 	char local_password[20];
 	char recv_username[20];
 	char recv_password[20];
+	char before_dot[20];
+	char after_dot[20];
 	char dfs_file_content[100];
 	char dfs_file_content_copy[100];
-	FILE *fp;
+	FILE *fp, *fp1;
+	int unique_no;
+	int recv_filelength;
+	int recv_filename_length;
+	char filename[15];
+	char filename_copy[15];	
+	char part_file_content[1000];
+	char part_file_name[20];
 
 	//parse command line arguments
 	if(argc != 3){
@@ -51,7 +61,8 @@ int main(int argc, char **argv){
 
 	strncpy(folder, argv[1], 20);
 	port_no = atoi(argv[2]);
-
+	unique_no = ((atoi(argv[2])-1) % NO_OF_CONNECTIONS) + 1;
+	
 	//snipping off the first character if it is /
 	if(folder[0] == '/'){
 		memmove(folder, folder+1, strlen(folder));
@@ -154,7 +165,32 @@ int main(int argc, char **argv){
 					send(sock_connect, &no, sizeof(int), 0);					
 				}
 			}
+
 			fclose(fp);
+
+			//receiving length of file
+			recv(sock_connect, &recv_filelength, sizeof(int), 0);
+			printf("Received length is %d\n", recv_filelength);
+			recv(sock_connect, &recv_filename_length, sizeof(int), 0);
+			printf("Received filename length is %d\n", recv_filename_length);
+			recv(sock_connect, filename, recv_filename_length, 0);
+			printf("Filename received is %s\n", filename);
+			strcpy(filename_copy, filename);
+			temp_str = strtok(filename_copy, ".");
+			strcpy(before_dot, temp_str);
+			temp_str = strtok(NULL, " \n");
+			strcpy(after_dot, temp_str);
+			memset(part_file_content, 0, sizeof(part_file_content));
+			recv(sock_connect, part_file_content, recv_filelength, 0);
+			//printf("Part file name content is %s\n", part_file_content);			
+			sprintf(part_file_name, ".%s.%s.%d", before_dot, after_dot, unique_no);
+			printf("part file name is %s\n", part_file_name);
+			strcat(part_file_content, "\0");
+
+			//opening the file
+			fp1 = fopen(part_file_name, "w");
+			fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
+			fclose(fp1);
 
 		}
 	}

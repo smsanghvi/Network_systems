@@ -115,7 +115,6 @@ int create_sockets(){
 
 int main(int argc, char **argv){
 	int i;
-	char buffer[BUFFER_SIZE];
 	char buffer_part[NO_OF_CONNECTIONS][BUFFER_SIZE];
 	int bytes_read[4];
  	int resp[4];
@@ -227,12 +226,21 @@ int main(int argc, char **argv){
 						length_part_file[NO_OF_CONNECTIONS - 1] += (length_of_file - sum); 
 					}
 	
+					int temp_length = strlen(filename);
 
+					fp = fopen(filename, "r");
 					for(i = 0; i < NO_OF_CONNECTIONS; i++){
 						length_part_file[i] = fread(buffer_part[i], sizeof(char), length_part_file[i], fp);
-						printf("Length of part file %d is %d\n", i, length_part_file[i]);
+						//sending the length of the part file
+						send(sockfd[i], &length_part_file[i], sizeof(int), 0);
+						//sending the length of the filename
+						send(sockfd[i], &temp_length, sizeof(int), 0);
+						//sending the name of the file 
+						send(sockfd[i], filename, strlen(filename), 0);
+						//sending the part file
 						send(sockfd[i], buffer_part[i], length_part_file[i] + 1, 0);
 					}
+					fclose(fp);
 
 					break;
 			//GET
