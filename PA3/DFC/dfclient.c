@@ -16,7 +16,7 @@
 #include <string.h>
 
 #define MAX_CONF_SIZE 1000
-#define BUFFER_SIZE 1000
+#define BUFFER_SIZE 1000000
 #define NO_OF_CONNECTIONS 4
 
 static char folder[NO_OF_CONNECTIONS][10];
@@ -227,10 +227,16 @@ int main(int argc, char **argv){
 					}
 	
 					int temp_length = strlen(filename);
+					int folder_length;
 
 					fp = fopen(filename, "r");
 					for(i = 0; i < NO_OF_CONNECTIONS; i++){
+						folder_length = strlen(folder[i]);
 						length_part_file[i] = fread(buffer_part[i], sizeof(char), length_part_file[i], fp);
+						//sending the length of the folder
+						send(sockfd[i], &folder_length, sizeof(int), 0);
+						//sending the folder name
+						send(sockfd[i], folder[i], folder_length, 0);
 						//sending the length of the part file
 						send(sockfd[i], &length_part_file[i], sizeof(int), 0);
 						//sending the length of the filename

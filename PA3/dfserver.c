@@ -11,13 +11,14 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <dirent.h>			//checking for directories
 #include <stdlib.h>
 #include <memory.h>
 #include <string.h>
 
 #define MAX_CONF_SIZE 1000
 #define NO_OF_CONNECTIONS 4
-#define MAXSIZE 1000
+#define MAXSIZE 1000000
 #define BACKLOG 10
 
 struct sockaddr_in local, remote;
@@ -52,6 +53,9 @@ int main(int argc, char **argv){
 	char filename_copy[15];	
 	char part_file_content[1000];
 	char part_file_name[20];
+	int folder_length;
+	char cmd_folder[30];
+	char recv_folder[10];
 
 	//parse command line arguments
 	if(argc != 3){
@@ -168,6 +172,37 @@ int main(int argc, char **argv){
 
 			fclose(fp);
 
+			//receiving length of folder name
+			recv(sock_connect, &folder_length, sizeof(int), 0);
+			//printf("Received folder length is %d\n", folder_length);
+
+			//receving the folder name eg. DFS1
+			recv(sock_connect, &recv_folder, sizeof(int), 0);
+    		char *p = recv_folder;
+    		p[strlen(p)] = 0;			
+			//printf("Received folder is %s\n", p);	
+
+			//check if directory exists before opening
+			DIR* dir = opendir(p);
+			if (dir)
+			{
+    			printf("Directory exists %s\n", p);
+    			closedir(dir);
+			}
+			else if (ENOENT == errno)
+			{
+    			/* Directory does not exist. */
+    			sprintf(cmd_folder, "mkdir %s", p);
+    			printf("Modified cmd is %s\n", cmd_folder);
+    			system(cmd_folder);
+    			printf("Directory %s does not exist.\n", p);
+			}
+			else
+			{
+				printf("Opendir() failed.\n");
+    			/* opendir() failed for some other reason. */
+			}
+
 			//receiving length of file
 			recv(sock_connect, &recv_filelength, sizeof(int), 0);
 			printf("Received length is %d\n", recv_filelength);
@@ -176,19 +211,17 @@ int main(int argc, char **argv){
 			recv(sock_connect, filename, recv_filename_length, 0);
 			printf("Filename received is %s\n", filename);
 			strcpy(filename_copy, filename);
-			temp_str = strtok(filename_copy, ".");
-			strcpy(before_dot, temp_str);
-			temp_str = strtok(NULL, " \n");
-			strcpy(after_dot, temp_str);
 			memset(part_file_content, 0, sizeof(part_file_content));
 			recv(sock_connect, part_file_content, recv_filelength, 0);
 			//printf("Part file name content is %s\n", part_file_content);			
-			sprintf(part_file_name, ".%s.%s.%d", before_dot, after_dot, unique_no);
+			sprintf(part_file_name, ".%s.%d", filename_copy, unique_no);
 			printf("part file name is %s\n", part_file_name);
 			strcat(part_file_content, "\0");
 
 			//opening the file
-			fp1 = fopen(part_file_name, "w");
+			//giving relative path : DFS1/.foo.txt.1 and opening that by fopen
+			sprintf(cmd_folder, "%s/%s", p, part_file_name);
+			fp1 = fopen(cmd_folder, "w");
 			fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
 			fclose(fp1);
 
