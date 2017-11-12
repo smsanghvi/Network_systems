@@ -198,54 +198,50 @@ int main(int argc, char **argv){
 		else if (!strncmp(options, "GET ", 4))
 			menu_id = 2;
 		else
-			menu_id = 3;		
+			menu_id = 3;	
+
+		//sending out the options
+		for(i=0; i< NO_OF_CONNECTIONS; i++){
+			options_length = strlen(options);
+			send(sockfd[i], &options_length, sizeof(options_length), 0);
+			send(sockfd[i], options, options_length, 0);
+		}				
+
+		//sending out user credentials
+		for(i=0; i<NO_OF_CONNECTIONS; i++){					
+			send(sockfd[i], &length_authenticate, sizeof(int), 0);
+		}
+
+		for(i=0; i<NO_OF_CONNECTIONS; i++){					
+			send(sockfd[i], concat_authenticate, length_authenticate, 0);
+		}
+
+		//waiting for correct credentials reply from servers
+		for(i=0; i<NO_OF_CONNECTIONS; i++){					
+			if((bytes_read[i] = recv(sockfd[i], &resp[i], sizeof(int), 0)) > 0){}	
+			if(resp[i] == 1){
+				printf("Authentication successful with server %d\n", i);
+				flag_authenticate = 0;
+			}
+			else{
+				printf("Invalid Username/Password. Please try again.\n");
+				flag_authenticate = 1;
+				break;
+			}
+		}
+
+		if(flag_authenticate)
+			continue;
 
 		switch(menu_id){
 			//LIST
 			case 0:
 					printf("\n");
-					//sending out the options
-					for(i=0; i< NO_OF_CONNECTIONS; i++){
-						options_length = strlen(options);
-						send(sockfd[i], &options_length, sizeof(options_length), 0);
-						send(sockfd[i], options, options_length, 0);
-					}
+
 					break;
 			//PUT
 			case 1:
 					printf("\n");
-					//sending out the options
-					for(i=0; i< NO_OF_CONNECTIONS; i++){
-						options_length = strlen(options);
-						send(sockfd[i], &options_length, sizeof(options_length), 0);
-						send(sockfd[i], options, options_length, 0);
-					}
-
-					//sending out user credentials
-					for(i=0; i<NO_OF_CONNECTIONS; i++){					
-						send(sockfd[i], &length_authenticate, sizeof(int), 0);
-					}
-
-					for(i=0; i<NO_OF_CONNECTIONS; i++){					
-						send(sockfd[i], concat_authenticate, length_authenticate, 0);
-					}
-
-					//waiting for correct credentials reply from servers
-					for(i=0; i<NO_OF_CONNECTIONS; i++){					
-						if((bytes_read[i] = recv(sockfd[i], &resp[i], sizeof(int), 0)) > 0){}	
-						if(resp[i] == 1){
-							printf("Authentication successful with server %d\n", i);
-							flag_authenticate = 0;
-						}
-						else{
-							printf("Invalid Username/Password. Please try again.\n");
-							flag_authenticate = 1;
-							break;
-						}
-					}
-
-					if(flag_authenticate)
-						continue;
 
 					temp_str = strtok(options, " ");
 					temp_str = strtok(NULL, " \n");
@@ -403,28 +399,18 @@ int main(int argc, char **argv){
 			//GET
 			case 2:
 					printf("\n");
-					//sending out the options
-					for(i=0; i< NO_OF_CONNECTIONS; i++){
-						options_length = strlen(options);
-						send(sockfd[i], &options_length, sizeof(options_length), 0);
-						send(sockfd[i], options, options_length, 0);
-					}
+
 					break;
 			//default
 			case 3:
 					printf("\n");
-					//sending out the options
-					for(i=0; i< NO_OF_CONNECTIONS; i++){
-						options_length = strlen(options);
-						send(sockfd[i], &options_length, sizeof(options_length), 0);
-						send(sockfd[i], options, options_length, 0);
-					}			
+		
 					printf("Enter option correctly.\n");		
 		}
 
 		break;
 	}
-	
+
 
 	return 0;
 }

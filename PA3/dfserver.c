@@ -88,6 +88,7 @@ int main(int argc, char **argv){
 	char cmd_folder[30];
 	char recv_folder[10];
 	int flag_credentials = 0;
+	char *p;
 
 	//parse command line arguments
 	if(argc != 3){
@@ -151,6 +152,7 @@ int main(int argc, char **argv){
 
 		printf("\n\nAccepted a connection from %s\n", inet_ntoa(remote.sin_addr));
 
+
 		options_length = 0;
 		if(recv(sock_connect, &options_length, sizeof(options_length), 0) > 0){};
 		printf("Options length is %d\n", options_length);
@@ -175,14 +177,12 @@ int main(int argc, char **argv){
 			memset(recv_password, 0, strlen(recv_password));
 			memset(authenticate_str, 0, strlen(authenticate_str));
 
-
 			//receiving the length of the string having username and password
 			if((bytes_read = recv(sock_connect, &recv_authenticate_length, sizeof(int), 0)) > 0){}
 
 			//receiving the string having username and password	
 			if((bytes_read = recv(sock_connect, authenticate_str, recv_authenticate_length, 0)) > 0){}
-
-
+			
 			temp_str = strtok(authenticate_str, " ");
 			strcpy(recv_username, temp_str);
 
@@ -222,6 +222,15 @@ int main(int argc, char **argv){
 				//LIST
 				case 0:
 						printf("It is LIST option.\n");
+
+						//receiving length of folder name
+						recv(sock_connect, &folder_length, sizeof(int), 0);
+						//printf("Received folder length is %d\n", folder_length);
+
+						//receving the folder name eg. DFS1
+						recv(sock_connect, &recv_folder, sizeof(int), 0);
+    					p = recv_folder;
+    					p[strlen(p)] = 0;
 						break;
 
 				//PUT
@@ -237,7 +246,7 @@ int main(int argc, char **argv){
 
 						//receving the folder name eg. DFS1
 						recv(sock_connect, &recv_folder, sizeof(int), 0);
-    					char *p = recv_folder;
+    					p = recv_folder;
     					p[strlen(p)] = 0;			
 						//printf("Received folder is %s\n", p);	
 
