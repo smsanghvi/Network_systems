@@ -31,6 +31,8 @@ int16_t menu_id = -1;
 int count = 0, x = 0;
 int sockfd[NO_OF_CONNECTIONS];
 struct sockaddr_in servaddr[NO_OF_CONNECTIONS];
+char storage_buf[NO_OF_CONNECTIONS][BUFFER_SIZE];
+
 
 //for md5
 int md5_n;
@@ -263,24 +265,128 @@ int main(int argc, char **argv){
 					int temp_length = strlen(filename);
 					int folder_length;
 
+					//storing all the file content values into 4 different buffers
 					fp = fopen(filename, "r");
 					for(i = 0; i < NO_OF_CONNECTIONS; i++){
+						length_part_file[i] = fread(storage_buf[i], sizeof(char), length_part_file[i], fp);
+					}
+					fclose(fp);
+
+					//fp = fopen(filename, "r");
+					for(i = 0; i < NO_OF_CONNECTIONS; i++){
+						//sending out the value of x
+						send(sockfd[i], &x, sizeof(int), 0);
 						folder_length = strlen(folder[i]);
-						length_part_file[i] = fread(buffer_part[i], sizeof(char), length_part_file[i], fp);
+						//length_part_file[i] = fread(buffer_part[i], sizeof(char), length_part_file[i], fp);
 						//sending the length of the folder
 						send(sockfd[i], &folder_length, sizeof(int), 0);
 						//sending the folder name
 						send(sockfd[i], folder[i], folder_length, 0);
-						//sending the length of the part file
-						send(sockfd[i], &length_part_file[i], sizeof(int), 0);
-						//sending the length of the filename
-						send(sockfd[i], &temp_length, sizeof(int), 0);
-						//sending the name of the file 
-						send(sockfd[i], filename, strlen(filename), 0);
-						//sending the part file
-						send(sockfd[i], buffer_part[i], length_part_file[i] + 1, 0);
+
+						if(x==0){
+							//sending the length of the part file
+							printf("Length of part file %d is %d\n", i, length_part_file[i]);
+							send(sockfd[i], &length_part_file[i], sizeof(int), 0);
+
+							//sending the length of the part file
+							printf("Length of part file %d is %d\n", (i+1)%4, length_part_file[(i+1)%4]);
+							send(sockfd[i], &length_part_file[(i+1)%4], sizeof(int), 0);
+
+							//sending the length of the filename
+							send(sockfd[i], &temp_length, sizeof(int), 0);
+							//sending the name of the file 
+							send(sockfd[i], filename, strlen(filename), 0);
+							
+							//sending the part file
+							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
+							strcpy(buffer_part[i], storage_buf[i]);
+							send(sockfd[i], buffer_part[i], length_part_file[i] + 1, 0);
+
+							//sending the part file
+							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
+							strcpy(buffer_part[i], storage_buf[(i+1)%4]);
+							send(sockfd[i], buffer_part[i], length_part_file[(i+1)%4] + 1, 0);	
+										
+						}
+						else if(x==1){
+							//sending the length of the part file
+							printf("Length of part file %d is %d\n", (i+3)%4, length_part_file[(i+3)%4]);
+							send(sockfd[i], &length_part_file[(i+3)%4], sizeof(int), 0);
+
+							//sending the length of the part file
+							printf("Length of part file %d is %d\n", i, length_part_file[i]);
+							send(sockfd[i], &length_part_file[i], sizeof(int), 0);
+
+							//sending the length of the filename
+							send(sockfd[i], &temp_length, sizeof(int), 0);
+							//sending the name of the file 
+							send(sockfd[i], filename, strlen(filename), 0);
+							
+							//sending the part file
+							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
+							strcpy(buffer_part[i], storage_buf[(i+3)%4]);
+							send(sockfd[i], buffer_part[i], length_part_file[(i+3)%4] + 1, 0);
+
+							//sending the part file
+							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
+							strcpy(buffer_part[i], storage_buf[i]);
+							send(sockfd[i], buffer_part[i], length_part_file[i] + 1, 0);	
+										
+						}
+						else if(x==2){
+							//sending the length of the part file
+							printf("Length of part file %d is %d\n", (i+2)%4, length_part_file[(i+2)%4]);
+							send(sockfd[i], &length_part_file[(i+2)%4], sizeof(int), 0);
+
+							//sending the length of the part file
+							printf("Length of part file %d is %d\n", (i+3)%4, length_part_file[(i+3)%4]);
+							send(sockfd[i], &length_part_file[(i+3)%4], sizeof(int), 0);
+
+							//sending the length of the filename
+							send(sockfd[i], &temp_length, sizeof(int), 0);
+							//sending the name of the file 
+							send(sockfd[i], filename, strlen(filename), 0);
+							
+							//sending the part file
+							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
+							strcpy(buffer_part[i], storage_buf[(i+2)%4]);
+							send(sockfd[i], buffer_part[i], length_part_file[(i+2)%4] + 1, 0);
+
+							//sending the part file
+							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
+							strcpy(buffer_part[i], storage_buf[(i+3)%4]);
+							send(sockfd[i], buffer_part[i], length_part_file[(i+3)%4] + 1, 0);	
+										
+						}
+						else if(x==3){
+							//sending the length of the part file
+							printf("Length of part file %d is %d\n", (i+1)%4, length_part_file[(i+1)%4]);
+							send(sockfd[i], &length_part_file[(i+1)%4], sizeof(int), 0);
+
+							//sending the length of the part file
+							printf("Length of part file %d is %d\n", (i+2)%4, length_part_file[(i+2)%4]);
+							send(sockfd[i], &length_part_file[(i+2)%4], sizeof(int), 0);
+
+							//sending the length of the filename
+							send(sockfd[i], &temp_length, sizeof(int), 0);
+							//sending the name of the file 
+							send(sockfd[i], filename, strlen(filename), 0);
+							
+							//sending the part file
+							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
+							strcpy(buffer_part[i], storage_buf[(i+1)%4]);
+							send(sockfd[i], buffer_part[i], length_part_file[(i+1)%4] + 1, 0);
+
+							//sending the part file
+							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
+							strcpy(buffer_part[i], storage_buf[(i+2)%4]);
+							send(sockfd[i], buffer_part[i], length_part_file[(i+2)%4] + 1, 0);	
+										
+						}
+					
 					}
-					fclose(fp);
+
+					//fclose(fp);
 
 					break;
 			//GET
