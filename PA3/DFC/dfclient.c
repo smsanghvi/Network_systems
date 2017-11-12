@@ -33,6 +33,8 @@ int sockfd[NO_OF_CONNECTIONS];
 struct sockaddr_in servaddr[NO_OF_CONNECTIONS];
 char storage_buf[NO_OF_CONNECTIONS][BUFFER_SIZE];
 int options_length = 0;
+int recv_list_size[NO_OF_CONNECTIONS];
+char recv_list_buffer[NO_OF_CONNECTIONS][100];
 
 
 //for md5
@@ -153,6 +155,7 @@ int main(int argc, char **argv){
  	int length_of_file;
  	int length_part_file[NO_OF_CONNECTIONS];
  	int flag_authenticate = 0;
+ 	int folder_length;
 
 	//basic check for the arguments
  	if (argc != 2) {
@@ -237,7 +240,22 @@ int main(int argc, char **argv){
 			//LIST
 			case 0:
 					printf("\n");
+					for(i=0; i<NO_OF_CONNECTIONS;i++){
+						folder_length = strlen(folder[i]);				
+						//sending the length of the folder
+						send(sockfd[i], &folder_length, sizeof(int), 0);
+						//sending the folder name
+						send(sockfd[i], folder[i], folder_length, 0);
+					}
 
+					for(i=0; i<NO_OF_CONNECTIONS; i++){
+						recv(sockfd[i], &recv_list_size[i], sizeof(int), 0);
+						recv(sockfd[i], recv_list_buffer[i], recv_list_size[i], 0);
+					}
+
+					printf("LIST OF SERVER FILES: -\n");
+					printf("--------------------------------\n");
+					puts(recv_list_buffer[3]);
 					break;
 			//PUT
 			case 1:
@@ -273,7 +291,6 @@ int main(int argc, char **argv){
 					}
 	
 					int temp_length = strlen(filename);
-					int folder_length;
 
 					//storing all the file content values into 4 different buffers
 					fp = fopen(filename, "r");

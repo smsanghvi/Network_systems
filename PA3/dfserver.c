@@ -32,6 +32,7 @@ char cmd_folder1[100];
 char options[20];
 int options_length;
 int menu_id = -1;
+FILE *fp, *fp1;
 
 
 //return a folder after creating it - if it doesnt exist
@@ -60,6 +61,16 @@ char *return_directory(char *p, char *username){
 }
 
 
+//obtains file length in bytes
+int file_length(FILE *fp)
+{
+    fseek(fp, 0, SEEK_END);
+    int length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    return length;
+}
+
+
 int main(int argc, char **argv){
 
 	socklen_t remote_len;
@@ -75,7 +86,6 @@ int main(int argc, char **argv){
 	char recv_password[20];
 	char dfs_file_content[100];
 	char dfs_file_content_copy[100];
-	FILE *fp, *fp1;
 	int unique_no;
 	int recv_filelength;
 	int recv_filelength1;
@@ -89,6 +99,8 @@ int main(int argc, char **argv){
 	char recv_folder[10];
 	int flag_credentials = 0;
 	char *p;
+	int list_size = 0;
+	char list_buf_contents[1000];
 
 	//parse command line arguments
 	if(argc != 3){
@@ -221,7 +233,7 @@ int main(int argc, char **argv){
 			switch(menu_id){
 				//LIST
 				case 0:
-						printf("It is LIST option.\n");
+						printf("LIST option.\n");
 
 						//receiving length of folder name
 						recv(sock_connect, &folder_length, sizeof(int), 0);
@@ -231,6 +243,24 @@ int main(int argc, char **argv){
 						recv(sock_connect, &recv_folder, sizeof(int), 0);
     					p = recv_folder;
     					p[strlen(p)] = 0;
+
+    					//command to print out all files and redirect to another file
+						system("find . -name '.*' >list.txt");
+						fp = fopen("list.txt", "r");
+						list_size = file_length(fp);
+						fread(list_buf_contents, sizeof(char), list_size, fp);
+						fclose(fp);
+
+						//sending out filesize first
+						send(sock_connect, &list_size, sizeof(list_size), 0);
+
+						//sending out actual content
+						send(sock_connect, list_buf_contents, list_size, 0);
+
+						//deleting the temporary file - only 1 process deletes it
+						if(unique_no == 1)
+							system("rm list.txt");
+
 						break;
 
 				//PUT
