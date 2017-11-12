@@ -29,17 +29,34 @@ char folder[20];
 int port_no;
 int x;
 static int *flag;
+char cmd_folder1[100];
+
 
 //return a folder after creating it - if it doesnt exist
 char *return_directory(char *p, char *username){
-    if(!*flag){
-    	char cmd_folder[100];
-	   	sprintf(cmd_folder, "cd %s && mkdir %s", p, username);
-   		system(cmd_folder);
-   		*flag = 1;
-   		printf("Set the flag!\n");
-    }
-	return username;
+
+	char temp2[100];
+	sprintf(temp2, "%s/%s", p, username);
+	DIR* dir = opendir(temp2);
+	if (dir)
+	{
+		closedir(dir);
+		return username;
+	}
+	else if (ENOENT == errno)
+	{
+		printf("p is %s\n", p);
+		printf("username is %s\n", username);
+    	/* Directory does not exist. */
+    	sprintf(cmd_folder1, "cd %s && mkdir %s", p, username);
+    	system(cmd_folder1);
+    	return username;
+	}
+	else
+	{
+		/* opendir() failed for some other reason. */
+		printf("Opendir() failed.\n");
+	}	
 }
 
 
@@ -70,6 +87,7 @@ int main(int argc, char **argv){
 	int folder_length;
 	char cmd_folder[30];
 	char recv_folder[10];
+	int flag_credentials = 0;
 
 	//parse command line arguments
 	if(argc != 3){
@@ -85,6 +103,7 @@ int main(int argc, char **argv){
 	flag = mmap(NULL, sizeof *flag, PROT_READ | PROT_WRITE, 
                     MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	*flag = 0;
+
 
 	//snipping off the first character if it is /
 	if(folder[0] == '/'){
@@ -159,37 +178,32 @@ int main(int argc, char **argv){
 			temp_str = strtok(NULL, " \n");	
 			strcpy(recv_password, temp_str);	
 
-			//printf("Username is %s\n", recv_username);
-			//printf("Password is %s\n", recv_password);
 
 			if((fp = fopen("dfs.conf", "r")) == NULL){
 				printf("Config file not found.\n");
 				exit(1);
 			}
 
+			//check credentials
 			while(!feof(fp)){
 				fgets(dfs_file_content, 100, fp);
 				if(strstr(dfs_file_content, recv_username) != NULL) {
 					if(strstr(dfs_file_content, recv_password) != NULL){
 						printf("\nCredentials match!\n");
+						flag_credentials = 1;
 						no = 1;
 						send(sock_connect, &no, sizeof(int), 0);
 						break;						
 					}
-					else{
-						printf("\nCredentials dont match!\n");
-						no = 0;
-						send(sock_connect, &no, sizeof(int), 0);
-					}
-				}
-				else{
-					printf("\nCredentials do not match!\n");
-					no = 0;
-					send(sock_connect, &no, sizeof(int), 0);					
 				}
 			}
 
 			fclose(fp);
+
+			if(!flag_credentials){
+				printf("\nCredentials do not match!\n");
+				send(sock_connect, &no, sizeof(int), 0);
+			}
 
 			//receiving value of x
 			recv(sock_connect, &x, sizeof(int), 0);
@@ -222,8 +236,10 @@ int main(int argc, char **argv){
 			{
 				/* opendir() failed for some other reason. */
 				printf("Opendir() failed.\n");
-				continue;
 			}
+
+			char *recv_usr = recv_username;
+			recv_usr[strlen(recv_usr)] = 0;
 
 			if(x == 0){
 				//file 1
@@ -246,9 +262,9 @@ int main(int argc, char **argv){
 				printf("part file name is %s\n", part_file_name);
 				strcat(part_file_content, "\0");
 
-				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_username));				
+				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));				
 				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_username, part_file_name);
+				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 				fp1 = fopen(buff, "w");
 				fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
 				fclose(fp1);
@@ -264,9 +280,9 @@ int main(int argc, char **argv){
 				strcat(part_file_content, "\0");
 
 
-				sprintf(buff, "cd %s && cd %s", p, recv_username);
+				sprintf(buff, "cd %s && cd %s", p, recv_usr);
 				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_username, part_file_name);
+				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 				fp1 = fopen(buff, "w");
 				fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
 				fclose(fp1);
@@ -294,9 +310,9 @@ int main(int argc, char **argv){
 				strcat(part_file_content, "\0");
 
 
-				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_username));			
+				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));			
 				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_username, part_file_name);
+				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 				fp1 = fopen(buff, "w");
 				fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
 				fclose(fp1);
@@ -312,9 +328,9 @@ int main(int argc, char **argv){
 				strcat(part_file_content, "\0");
 
 
-				sprintf(buff, "cd %s && cd %s", p, recv_username);
+				sprintf(buff, "cd %s && cd %s", p, recv_usr);
 				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_username, part_file_name);
+				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 				fp1 = fopen(buff, "w");
 				fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
 				fclose(fp1);
@@ -341,9 +357,9 @@ int main(int argc, char **argv){
 				printf("part file name is %s\n", part_file_name);
 				strcat(part_file_content, "\0");
 
-				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_username));
+				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));
 				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_username, part_file_name);
+				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 				fp1 = fopen(buff, "w");
 				fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
 				fclose(fp1);
@@ -359,9 +375,9 @@ int main(int argc, char **argv){
 				strcat(part_file_content, "\0");
 
 
-				sprintf(buff, "cd %s && cd %s", p, recv_username);
+				sprintf(buff, "cd %s && cd %s", p, recv_usr);
 				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_username, part_file_name);
+				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 				fp1 = fopen(buff, "w");
 				fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
 				fclose(fp1);
@@ -388,9 +404,9 @@ int main(int argc, char **argv){
 				printf("part file name is %s\n", part_file_name);
 				strcat(part_file_content, "\0");
 
-				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_username));			
+				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));			
 				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_username, part_file_name);
+				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 				fp1 = fopen(buff, "w");
 				fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
 				fclose(fp1);
@@ -406,9 +422,9 @@ int main(int argc, char **argv){
 				strcat(part_file_content, "\0");
 
 
-				sprintf(buff, "cd %s && cd %s", p, recv_username);
+				sprintf(buff, "cd %s && cd %s", p, recv_usr);
 				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_username, part_file_name);
+				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 				fp1 = fopen(buff, "w");
 				fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
 				fclose(fp1);
