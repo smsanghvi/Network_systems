@@ -28,8 +28,10 @@ int sock_connect;  //socket descriptor
 char folder[20];
 int port_no;
 int x;
-static int *flag;
 char cmd_folder1[100];
+char options[20];
+int options_length;
+int menu_id = -1;
 
 
 //return a folder after creating it - if it doesnt exist
@@ -45,8 +47,6 @@ char *return_directory(char *p, char *username){
 	}
 	else if (ENOENT == errno)
 	{
-		printf("p is %s\n", p);
-		printf("username is %s\n", username);
     	/* Directory does not exist. */
     	sprintf(cmd_folder1, "cd %s && mkdir %s", p, username);
     	system(cmd_folder1);
@@ -99,11 +99,6 @@ int main(int argc, char **argv){
 	port_no = atoi(argv[2]);
 	unique_no = ((atoi(argv[2])-1) % NO_OF_CONNECTIONS) + 1;
 	
-	//creating shared memory for the flag variable to be accessed from any process
-	flag = mmap(NULL, sizeof *flag, PROT_READ | PROT_WRITE, 
-                    MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	*flag = 0;
-
 
 	//snipping off the first character if it is /
 	if(folder[0] == '/'){
@@ -156,12 +151,30 @@ int main(int argc, char **argv){
 
 		printf("\n\nAccepted a connection from %s\n", inet_ntoa(remote.sin_addr));
 
+		options_length = 0;
+		if(recv(sock_connect, &options_length, sizeof(options_length), 0) > 0){};
+		printf("Options length is %d\n", options_length);
+		memset(options, 0, strlen(options));
+		recv(sock_connect, options, options_length, 0);
+		printf("Options received is %s\n", options);
+
+		if  (!strncmp(options, "LIST", 4))
+			menu_id = 0;
+		else if (!strncmp(options, "PUT ", 4))
+			menu_id = 1;
+		else if (!strncmp(options, "GET ", 4))
+			menu_id = 2;
+		else
+			menu_id = 3;	
+
+
 		if( (pid = fork()) == 0){
 			printf("Process id is %d\n", getpid());
 			//close(sock_listen);
 			memset(recv_username, 0, strlen(recv_username));
 			memset(recv_password, 0, strlen(recv_password));
 			memset(authenticate_str, 0, strlen(authenticate_str));
+
 
 			//receiving the length of the string having username and password
 			if((bytes_read = recv(sock_connect, &recv_authenticate_length, sizeof(int), 0)) > 0){}
@@ -205,235 +218,246 @@ int main(int argc, char **argv){
 				send(sock_connect, &no, sizeof(int), 0);
 			}
 
-			//receiving value of x
-			recv(sock_connect, &x, sizeof(int), 0);
-			printf("Received value of x is %d\n", x);
+			switch(menu_id){
+				//LIST
+				case 0:
+						printf("It is LIST option.\n");
+						break;
 
-			//receiving length of folder name
-			recv(sock_connect, &folder_length, sizeof(int), 0);
-			//printf("Received folder length is %d\n", folder_length);
+				//PUT
+				case 1:
+						printf("PUT option.\n");
+						//receiving value of x
+						recv(sock_connect, &x, sizeof(int), 0);
+						printf("Received value of x is %d\n", x);
 
-			//receving the folder name eg. DFS1
-			recv(sock_connect, &recv_folder, sizeof(int), 0);
-    		char *p = recv_folder;
-    		p[strlen(p)] = 0;			
-			//printf("Received folder is %s\n", p);	
+						//receiving length of folder name
+						recv(sock_connect, &folder_length, sizeof(int), 0);
+						//printf("Received folder length is %d\n", folder_length);
 
-			//check if directory exists before opening
-			DIR* dir = opendir(p);
-			if (dir)
-			{
-    			closedir(dir);
-			}
-			else if (ENOENT == errno)
-			{
-    			/* Directory does not exist. */
-    			sprintf(cmd_folder, "mkdir %s", p);
-    			//printf("Modified cmd is %s\n", cmd_folder);
-    			system(cmd_folder);
-			}
-			else
-			{
-				/* opendir() failed for some other reason. */
-				printf("Opendir() failed.\n");
-			}
+						//receving the folder name eg. DFS1
+						recv(sock_connect, &recv_folder, sizeof(int), 0);
+    					char *p = recv_folder;
+    					p[strlen(p)] = 0;			
+						//printf("Received folder is %s\n", p);	
 
-			char *recv_usr = recv_username;
-			recv_usr[strlen(recv_usr)] = 0;
+						//check if directory exists before opening
+						DIR* dir = opendir(p);
+						if (dir)
+			    			closedir(dir);
+						else if (ENOENT == errno){
+			    			// Directory does not exist.
+    						sprintf(cmd_folder, "mkdir %s", p);
+    						system(cmd_folder);
+						}
+						else{
+							// opendir() failed for some other reason. 
+							printf("Opendir() failed.\n");
+						}
 
-			if(x == 0){
-				//file 1
-				//receiving length of file
-				recv(sock_connect, &recv_filelength, sizeof(int), 0);
-				printf("Length of part file 1 is %d\n", recv_filelength);
+						char *recv_usr = recv_username;
+						recv_usr[strlen(recv_usr)] = 0;
+
+						if(x == 0){
+							//file 1
+							//receiving length of file
+							recv(sock_connect, &recv_filelength, sizeof(int), 0);
+							printf("Length of part file 1 is %d\n", recv_filelength);
 				
-				//receiving length of file
-				recv(sock_connect, &recv_filelength1, sizeof(int), 0);
-				printf("Length of part file 2 is %d\n", recv_filelength1);
+							//receiving length of file
+							recv(sock_connect, &recv_filelength1, sizeof(int), 0);
+							printf("Length of part file 2 is %d\n", recv_filelength1);
 
-				recv(sock_connect, &recv_filename_length, sizeof(int), 0);
-				//printf("Received filename length is %d\n", recv_filename_length);
-				recv(sock_connect, filename, recv_filename_length, 0);
-				printf("Filename received is %s\n", filename);
-				memset(part_file_content, 0, sizeof(part_file_content));
-				recv(sock_connect, part_file_content, recv_filelength, 0);
-				//printf("Part file name content is %s\n", part_file_content);			
-				sprintf(part_file_name, ".%s.%d", filename, unique_no);
-				printf("part file name is %s\n", part_file_name);
-				strcat(part_file_content, "\0");
+							recv(sock_connect, &recv_filename_length, sizeof(int), 0);
+							//printf("Received filename length is %d\n", recv_filename_length);
+							recv(sock_connect, filename, recv_filename_length, 0);
+							printf("Filename received is %s\n", filename);
+							memset(part_file_content, 0, sizeof(part_file_content));
+							recv(sock_connect, part_file_content, recv_filelength, 0);
+							//printf("Part file name content is %s\n", part_file_content);			
+							sprintf(part_file_name, ".%s.%d", filename, unique_no);
+							printf("part file name is %s\n", part_file_name);
+							strcat(part_file_content, "\0");
 
-				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));				
-				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
-				fp1 = fopen(buff, "w");
-				fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
-				fclose(fp1);
+							sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));				
+							system(buff);
+							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
+							fp1 = fopen(buff, "w");
+							fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
+							fclose(fp1);
 
-
-				//file 2
+							//file 2
 				
-				memset(part_file_content, 0, sizeof(part_file_content));
-				recv(sock_connect, part_file_content, recv_filelength1, 0);
-				//printf("Part file name content is %s\n", part_file_content);			
-				sprintf(part_file_name, ".%s.%d", filename, (unique_no+1)%4);
-				printf("part file name is %s\n", part_file_name);
-				strcat(part_file_content, "\0");
+							memset(part_file_content, 0, sizeof(part_file_content));
+							recv(sock_connect, part_file_content, recv_filelength1, 0);
+							//printf("Part file name content is %s\n", part_file_content);			
+							sprintf(part_file_name, ".%s.%d", filename, (unique_no+1)%4);
+							printf("part file name is %s\n", part_file_name);
+							strcat(part_file_content, "\0");
 
+							sprintf(buff, "cd %s && cd %s", p, recv_usr);
+							system(buff);
+							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
+							fp1 = fopen(buff, "w");
+							fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
+							fclose(fp1);
 
-				sprintf(buff, "cd %s && cd %s", p, recv_usr);
-				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
-				fp1 = fopen(buff, "w");
-				fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
-				fclose(fp1);
-
-			}	
-			else if(x == 1){
-				//file 1
-				//receiving length of file
-				recv(sock_connect, &recv_filelength, sizeof(int), 0);
-				printf("Length of part file 1 is %d\n", recv_filelength);
+						}	
+						else if(x == 1){
+							//file 1
+							//receiving length of file
+							recv(sock_connect, &recv_filelength, sizeof(int), 0);
+							printf("Length of part file 1 is %d\n", recv_filelength);
 				
-				//receiving length of file
-				recv(sock_connect, &recv_filelength1, sizeof(int), 0);
-				printf("Length of part file 2 is %d\n", recv_filelength1);
+							//receiving length of file
+							recv(sock_connect, &recv_filelength1, sizeof(int), 0);
+							printf("Length of part file 2 is %d\n", recv_filelength1);
 
-				recv(sock_connect, &recv_filename_length, sizeof(int), 0);
-				//printf("Received filename length is %d\n", recv_filename_length);
-				recv(sock_connect, filename, recv_filename_length, 0);
-				printf("Filename received is %s\n", filename);
-				memset(part_file_content, 0, sizeof(part_file_content));
-				recv(sock_connect, part_file_content, recv_filelength, 0);
-				//printf("Part file name content is %s\n", part_file_content);			
-				sprintf(part_file_name, ".%s.%d", filename, (unique_no+3)%4);
-				printf("part file name is %s\n", part_file_name);
-				strcat(part_file_content, "\0");
-
-
-				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));			
-				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
-				fp1 = fopen(buff, "w");
-				fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
-				fclose(fp1);
+							recv(sock_connect, &recv_filename_length, sizeof(int), 0);
+							//printf("Received filename length is %d\n", recv_filename_length);
+							recv(sock_connect, filename, recv_filename_length, 0);
+							printf("Filename received is %s\n", filename);
+							memset(part_file_content, 0, sizeof(part_file_content));
+							recv(sock_connect, part_file_content, recv_filelength, 0);
+							//printf("Part file name content is %s\n", part_file_content);			
+							sprintf(part_file_name, ".%s.%d", filename, (unique_no+3)%4);
+							printf("part file name is %s\n", part_file_name);
+							strcat(part_file_content, "\0");
 
 
-				//file 2
+							sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));			
+							system(buff);
+							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
+							fp1 = fopen(buff, "w");
+							fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
+							fclose(fp1);
+
+							//file 2
 				
-				memset(part_file_content, 0, sizeof(part_file_content));
-				recv(sock_connect, part_file_content, recv_filelength1, 0);
-				//printf("Part file name content is %s\n", part_file_content);			
-				sprintf(part_file_name, ".%s.%d", filename, unique_no);
-				printf("part file name is %s\n", part_file_name);
-				strcat(part_file_content, "\0");
+							memset(part_file_content, 0, sizeof(part_file_content));
+							recv(sock_connect, part_file_content, recv_filelength1, 0);
+							//printf("Part file name content is %s\n", part_file_content);			
+							sprintf(part_file_name, ".%s.%d", filename, unique_no);
+							printf("part file name is %s\n", part_file_name);
+							strcat(part_file_content, "\0");
 
 
-				sprintf(buff, "cd %s && cd %s", p, recv_usr);
-				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
-				fp1 = fopen(buff, "w");
-				fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
-				fclose(fp1);
+							sprintf(buff, "cd %s && cd %s", p, recv_usr);
+							system(buff);
+							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
+							fp1 = fopen(buff, "w");
+							fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
+							fclose(fp1);
 
-			}	
-			else if(x == 2){
-				//file 1
-				//receiving length of file
-				recv(sock_connect, &recv_filelength, sizeof(int), 0);
-				printf("Length of part file 1 is %d\n", recv_filelength);
+						}	
+						else if(x == 2){
+							//file 1
+							//receiving length of file
+							recv(sock_connect, &recv_filelength, sizeof(int), 0);
+							printf("Length of part file 1 is %d\n", recv_filelength);
 				
-				//receiving length of file
-				recv(sock_connect, &recv_filelength1, sizeof(int), 0);
-				printf("Length of part file 2 is %d\n", recv_filelength1);
+							//receiving length of file
+							recv(sock_connect, &recv_filelength1, sizeof(int), 0);
+							printf("Length of part file 2 is %d\n", recv_filelength1);
 
-				recv(sock_connect, &recv_filename_length, sizeof(int), 0);
-				//printf("Received filename length is %d\n", recv_filename_length);
-				recv(sock_connect, filename, recv_filename_length, 0);
-				printf("Filename received is %s\n", filename);
-				memset(part_file_content, 0, sizeof(part_file_content));
-				recv(sock_connect, part_file_content, recv_filelength, 0);
-				//printf("Part file name content is %s\n", part_file_content);			
-				sprintf(part_file_name, ".%s.%d", filename, (unique_no+2)%4);
-				printf("part file name is %s\n", part_file_name);
-				strcat(part_file_content, "\0");
+							recv(sock_connect, &recv_filename_length, sizeof(int), 0);
+							//printf("Received filename length is %d\n", recv_filename_length);
+							recv(sock_connect, filename, recv_filename_length, 0);
+							printf("Filename received is %s\n", filename);
+							memset(part_file_content, 0, sizeof(part_file_content));
+							recv(sock_connect, part_file_content, recv_filelength, 0);
+							//printf("Part file name content is %s\n", part_file_content);			
+							sprintf(part_file_name, ".%s.%d", filename, (unique_no+2)%4);
+							printf("part file name is %s\n", part_file_name);
+							strcat(part_file_content, "\0");
 
-				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));
-				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
-				fp1 = fopen(buff, "w");
-				fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
-				fclose(fp1);
+							sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));
+							system(buff);
+							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
+							fp1 = fopen(buff, "w");
+							fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
+							fclose(fp1);
 
 
-				//file 2
+							//file 2
 				
-				memset(part_file_content, 0, sizeof(part_file_content));
-				recv(sock_connect, part_file_content, recv_filelength1, 0);
-				//printf("Part file name content is %s\n", part_file_content);			
-				sprintf(part_file_name, ".%s.%d", filename, (unique_no+3)%4);
-				printf("part file name is %s\n", part_file_name);
-				strcat(part_file_content, "\0");
+							memset(part_file_content, 0, sizeof(part_file_content));
+							recv(sock_connect, part_file_content, recv_filelength1, 0);
+							//printf("Part file name content is %s\n", part_file_content);			
+							sprintf(part_file_name, ".%s.%d", filename, (unique_no+3)%4);
+							printf("part file name is %s\n", part_file_name);
+							strcat(part_file_content, "\0");
 
 
-				sprintf(buff, "cd %s && cd %s", p, recv_usr);
-				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
-				fp1 = fopen(buff, "w");
-				fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
-				fclose(fp1);
+							sprintf(buff, "cd %s && cd %s", p, recv_usr);
+							system(buff);
+							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
+							fp1 = fopen(buff, "w");
+							fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
+							fclose(fp1);
 
-			}	
-			else if(x == 3){
-				//file 1
-				//receiving length of file
-				recv(sock_connect, &recv_filelength, sizeof(int), 0);
-				printf("Length of part file 1 is %d\n", recv_filelength);
+						}	
+						else if(x == 3){
+							//file 1
+							//receiving length of file
+							recv(sock_connect, &recv_filelength, sizeof(int), 0);
+							printf("Length of part file 1 is %d\n", recv_filelength);
 				
-				//receiving length of file
-				recv(sock_connect, &recv_filelength1, sizeof(int), 0);
-				printf("Length of part file 2 is %d\n", recv_filelength1);
+							//receiving length of file
+							recv(sock_connect, &recv_filelength1, sizeof(int), 0);
+							printf("Length of part file 2 is %d\n", recv_filelength1);
 
-				recv(sock_connect, &recv_filename_length, sizeof(int), 0);
-				//printf("Received filename length is %d\n", recv_filename_length);
-				recv(sock_connect, filename, recv_filename_length, 0);
-				printf("Filename received is %s\n", filename);
-				memset(part_file_content, 0, sizeof(part_file_content));
-				recv(sock_connect, part_file_content, recv_filelength, 0);
-				//printf("Part file name content is %s\n", part_file_content);			
-				sprintf(part_file_name, ".%s.%d", filename, (unique_no+1)%4);
-				printf("part file name is %s\n", part_file_name);
-				strcat(part_file_content, "\0");
+							recv(sock_connect, &recv_filename_length, sizeof(int), 0);
+							//printf("Received filename length is %d\n", recv_filename_length);
+							recv(sock_connect, filename, recv_filename_length, 0);
+							printf("Filename received is %s\n", filename);
+							memset(part_file_content, 0, sizeof(part_file_content));
+							recv(sock_connect, part_file_content, recv_filelength, 0);
+							//printf("Part file name content is %s\n", part_file_content);			
+							sprintf(part_file_name, ".%s.%d", filename, (unique_no+1)%4);
+							printf("part file name is %s\n", part_file_name);
+							strcat(part_file_content, "\0");
 
-				sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));			
-				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
-				fp1 = fopen(buff, "w");
-				fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
-				fclose(fp1);
+							sprintf(buff, "cd %s && cd %s", p, return_directory(p, recv_usr));			
+							system(buff);
+							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
+							fp1 = fopen(buff, "w");
+							fwrite(part_file_content, sizeof(char), recv_filelength+1, fp1);
+							fclose(fp1);
 
 
-				//file 2
+							//file 2
 				
-				memset(part_file_content, 0, sizeof(part_file_content));
-				recv(sock_connect, part_file_content, recv_filelength1, 0);
-				//printf("Part file name content is %s\n", part_file_content);			
-				sprintf(part_file_name, ".%s.%d", filename, (unique_no+2)%4);
-				printf("part file name is %s\n", part_file_name);
-				strcat(part_file_content, "\0");
+							memset(part_file_content, 0, sizeof(part_file_content));
+							recv(sock_connect, part_file_content, recv_filelength1, 0);
+							//printf("Part file name content is %s\n", part_file_content);			
+							sprintf(part_file_name, ".%s.%d", filename, (unique_no+2)%4);
+							printf("part file name is %s\n", part_file_name);
+							strcat(part_file_content, "\0");
 
 
-				sprintf(buff, "cd %s && cd %s", p, recv_usr);
-				system(buff);
-				sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
-				fp1 = fopen(buff, "w");
-				fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
-				fclose(fp1);
+							sprintf(buff, "cd %s && cd %s", p, recv_usr);
+							system(buff);
+							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
+							fp1 = fopen(buff, "w");
+							fwrite(part_file_content, sizeof(char), recv_filelength1+1, fp1);
+							fclose(fp1);
+						}
 
-			}	
+						break;
+	
+				case 2:
+						printf("GET option.\n");
+						break;
+
+				default:
+						printf("Did not match any of the options.\n");
+
+			}//end of switch case	
 			printf("At the end.\n");
 
-		}
-	}
+		}//end of fork call
+	}//end of while loop
 
 	return 0;
 }

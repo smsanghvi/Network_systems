@@ -32,6 +32,7 @@ int count = 0, x = 0;
 int sockfd[NO_OF_CONNECTIONS];
 struct sockaddr_in servaddr[NO_OF_CONNECTIONS];
 char storage_buf[NO_OF_CONNECTIONS][BUFFER_SIZE];
+int options_length = 0;
 
 
 //for md5
@@ -202,11 +203,24 @@ int main(int argc, char **argv){
 		switch(menu_id){
 			//LIST
 			case 0:
-					printf("It is LIST option.\n");
+					printf("\n");
+					//sending out the options
+					for(i=0; i< NO_OF_CONNECTIONS; i++){
+						options_length = strlen(options);
+						send(sockfd[i], &options_length, sizeof(options_length), 0);
+						send(sockfd[i], options, options_length, 0);
+					}
 					break;
 			//PUT
 			case 1:
 					printf("\n");
+					//sending out the options
+					for(i=0; i< NO_OF_CONNECTIONS; i++){
+						options_length = strlen(options);
+						send(sockfd[i], &options_length, sizeof(options_length), 0);
+						send(sockfd[i], options, options_length, 0);
+					}
+
 					//sending out user credentials
 					for(i=0; i<NO_OF_CONNECTIONS; i++){					
 						send(sockfd[i], &length_authenticate, sizeof(int), 0);
@@ -272,7 +286,6 @@ int main(int argc, char **argv){
 					}
 					fclose(fp);
 
-					//fp = fopen(filename, "r");
 					for(i = 0; i < NO_OF_CONNECTIONS; i++){
 						//sending out the value of x
 						send(sockfd[i], &x, sizeof(int), 0);
@@ -386,37 +399,32 @@ int main(int argc, char **argv){
 					
 					}
 
-					//fclose(fp);
-
 					break;
 			//GET
 			case 2:
-					printf("It is GET option.\n");
+					printf("\n");
+					//sending out the options
+					for(i=0; i< NO_OF_CONNECTIONS; i++){
+						options_length = strlen(options);
+						send(sockfd[i], &options_length, sizeof(options_length), 0);
+						send(sockfd[i], options, options_length, 0);
+					}
 					break;
 			//default
 			case 3:
+					printf("\n");
+					//sending out the options
+					for(i=0; i< NO_OF_CONNECTIONS; i++){
+						options_length = strlen(options);
+						send(sockfd[i], &options_length, sizeof(options_length), 0);
+						send(sockfd[i], options, options_length, 0);
+					}			
 					printf("Enter option correctly.\n");		
 		}
 
 		break;
 	}
-
-	//verbose file parsing
-	/*printf("Folder 1 is %s\n", folder[0]);
-	printf("Folder 2 is %s\n", folder[1]);
-	printf("Folder 3 is %s\n", folder[2]);
-	printf("Folder 4 is %s\n", folder[3]);
-	printf("IP 1 is %s\n", ip[0]);
-	printf("IP 2 is %s\n", ip[1]);
-	printf("IP 3 is %s\n", ip[2]);
-	printf("IP 4 is %s\n", ip[3]);
-	printf("Port 1 is %d\n", port[0]);
-	printf("Port 2 is %d\n", port[1]);
-	printf("Port 3 is %d\n", port[2]);
-	printf("Port 4 is %d\n", port[3]);
-	printf("Username is %s\n", username);
-	printf("Password is %s\n", password);
-	printf("Parsing complete.\n\n");*/
+	
 
 	return 0;
 }
