@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <string.h>
+#include <openssl/md5.h>
 
 #define MAX_CONF_SIZE 1000
 #define BUFFER_SIZE 1000000
@@ -27,13 +28,37 @@ char password[20];
 char options[20];
 char *str;
 int16_t menu_id = -1;	
-int count = 0;
+int count = 0, x = 0;
 int sockfd[NO_OF_CONNECTIONS];
 struct sockaddr_in servaddr[NO_OF_CONNECTIONS];
 
+//for md5
+int md5_n;
+MD5_CTX md5_c;
+char md5_buf[512];
+ssize_t md5_bytes;
+unsigned char md5_out[MD5_DIGEST_LENGTH];
 
 char buf_conf[MAX_CONF_SIZE];
 
+
+//computing md5 sum of file and returning modulus of 4
+int md5sum_mod(FILE *fp){
+	MD5_Init(&md5_c);
+    md5_bytes = fread(md5_buf, 512, 1, fp);
+    while(md5_bytes > 0)
+    {
+            MD5_Update(&md5_c, md5_buf, md5_bytes);
+            md5_bytes = fread(md5_buf, 512, 1, fp);
+    }
+
+    MD5_Final(md5_out, &md5_c);
+
+    return md5_out[0] % 4;
+}
+
+
+//parsing dfc.conf file
 void parse_conf(FILE *fp){
 	while(count<6){
 		//reading in a line at a time
@@ -124,6 +149,7 @@ int main(int argc, char **argv){
  	char filename[20];
  	int length_of_file;
  	int length_part_file[NO_OF_CONNECTIONS];
+ 	int flag_authenticate = 0;
 
 	//basic check for the arguments
  	if (argc != 2) {
@@ -191,13 +217,19 @@ int main(int argc, char **argv){
 					//waiting for correct credentials reply from servers
 					for(i=0; i<NO_OF_CONNECTIONS; i++){					
 						if((bytes_read[i] = recv(sockfd[i], &resp[i], sizeof(int), 0)) > 0){}	
-						if(resp[i] == 1)
+						if(resp[i] == 1){
 							printf("Authentication successful with server %d\n", i);
+							flag_authenticate = 0;
+						}
 						else{
-							printf("Authentication failed with server %d\n", i);
-							exit(1);
+							printf("Invalid Username/Password. Please try again.\n");
+							flag_authenticate = 1;
+							break;
 						}
 					}
+
+					if(flag_authenticate)
+						continue;
 
 					temp_str = strtok(options, " ");
 					temp_str = strtok(NULL, " \n");
@@ -212,6 +244,8 @@ int main(int argc, char **argv){
 					//obtaining file length in bytes
 					fp = fopen(filename, "r");
 					length_of_file = file_length(fp);
+					x = md5sum_mod(fp);
+					printf("x is %d\n", x);
 					printf("Length of %s is %d\n", filename, length_of_file);
 					fclose(fp);
 

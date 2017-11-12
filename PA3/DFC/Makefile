@@ -2,7 +2,7 @@
 
 #calling the gcc compiler to build the code
 all: dfclient.c
-	gcc dfclient.c -Wall -o dfclient
+	gcc dfclient.c -lcrypto -lssl -Wall -o dfclient
 
 #clean up the executable created
 clean:
