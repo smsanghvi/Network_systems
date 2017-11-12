@@ -24,6 +24,7 @@ static char folder[NO_OF_CONNECTIONS][10];
 static char ip[NO_OF_CONNECTIONS][20];
 int port[NO_OF_CONNECTIONS];
 char username[20];
+char username_copy[20];
 char password[20];
 char options[20];
 char *str;
@@ -35,6 +36,7 @@ char storage_buf[NO_OF_CONNECTIONS][BUFFER_SIZE];
 int options_length = 0;
 int recv_list_size[NO_OF_CONNECTIONS];
 char recv_list_buffer[NO_OF_CONNECTIONS][100];
+char recv_list_buffer_copy[100];
 
 
 //for md5
@@ -96,6 +98,7 @@ void parse_conf(FILE *fp){
 					break;					
 			case 4: str = strtok(NULL, " \n");
 					strcpy(username, str);
+					strcpy(username_copy, str);
 					break;
 			case 5: str = strtok(NULL, " \n");
 					strcpy(password, str);
@@ -255,7 +258,8 @@ int main(int argc, char **argv){
 
 					printf("LIST OF SERVER FILES: -\n");
 					printf("--------------------------------\n");
-					puts(recv_list_buffer[3]);
+					printf("%s\n\n",recv_list_buffer[3]);				
+
 					break;
 			//PUT
 			case 1:

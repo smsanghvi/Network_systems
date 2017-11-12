@@ -101,6 +101,8 @@ int main(int argc, char **argv){
 	char *p;
 	int list_size = 0;
 	char list_buf_contents[1000];
+	char list_buf_contents_actual[1000];
+
 
 	//parse command line arguments
 	if(argc != 3){
@@ -251,15 +253,33 @@ int main(int argc, char **argv){
 						fread(list_buf_contents, sizeof(char), list_size, fp);
 						fclose(fp);
 
+						char * line = strtok(strdup(list_buf_contents), "\n");
+						while(line) {
+ 	 						//printf("Line is :%s\n", line);
+   							if(strstr(line, recv_username)!=NULL){
+   								//printf("Line is :%s\n", line);
+   								strcat(list_buf_contents_actual, line);
+   								//strncpy(list_buf_contents_actual, line, strlen(line));
+   								strcat(list_buf_contents_actual, "\n");
+   							}
+   							line  = strtok(NULL, "\n");
+						}
+
+						strcat(list_buf_contents_actual, "\0");
+
+						//printf("Actual list is %s\n", list_buf_contents_actual);	
+						int actual_length = strlen(list_buf_contents_actual);			
+						//printf("Actual length is %d\n", actual_length);
+
 						//sending out filesize first
-						send(sock_connect, &list_size, sizeof(list_size), 0);
+						send(sock_connect, &actual_length, sizeof(int), 0);
 
 						//sending out actual content
-						send(sock_connect, list_buf_contents, list_size, 0);
+						send(sock_connect, list_buf_contents_actual, actual_length, 0);
 
 						//deleting the temporary file - only 1 process deletes it
-						if(unique_no == 1)
-							system("rm list.txt");
+						//if(unique_no == 1)
+						//	system("rm list.txt");
 
 						break;
 
