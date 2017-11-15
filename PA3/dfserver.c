@@ -236,6 +236,8 @@ int main(int argc, char **argv){
 				//LIST
 				case 0:
 						printf("LIST option.\n");
+						memset(list_buf_contents_actual, 0, sizeof(list_buf_contents_actual));
+						memset(list_buf_contents, 0, sizeof(list_buf_contents));
 
 						//receiving length of folder name
 						recv(sock_connect, &folder_length, sizeof(int), 0);
@@ -278,8 +280,8 @@ int main(int argc, char **argv){
 						send(sock_connect, list_buf_contents_actual, actual_length, 0);
 
 						//deleting the temporary file - only 1 process deletes it
-						//if(unique_no == 1)
-						//	system("rm list.txt");
+						if(unique_no == 1)
+							system("rm list.txt");
 
 						break;
 
@@ -334,7 +336,7 @@ int main(int argc, char **argv){
 							memset(part_file_content, 0, sizeof(part_file_content));
 							recv(sock_connect, part_file_content, recv_filelength, 0);
 							//printf("Part file name content is %s\n", part_file_content);			
-							sprintf(part_file_name, ".%s.%d", filename, unique_no);
+							sprintf(part_file_name, ".%s.%d", filename, unique_no%4);
 							printf("part file name is %s\n", part_file_name);
 							strcat(part_file_content, "\0");
 
@@ -396,7 +398,7 @@ int main(int argc, char **argv){
 							memset(part_file_content, 0, sizeof(part_file_content));
 							recv(sock_connect, part_file_content, recv_filelength1, 0);
 							//printf("Part file name content is %s\n", part_file_content);			
-							sprintf(part_file_name, ".%s.%d", filename, unique_no);
+							sprintf(part_file_name, ".%s.%d", filename, unique_no%4);
 							printf("part file name is %s\n", part_file_name);
 							strcat(part_file_content, "\0");
 

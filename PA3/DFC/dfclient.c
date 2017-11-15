@@ -25,6 +25,7 @@ static char ip[NO_OF_CONNECTIONS][20];
 int port[NO_OF_CONNECTIONS];
 char username[20];
 char username_copy[20];
+int username_length;
 char password[20];
 char options[20];
 char *str;
@@ -35,8 +36,13 @@ struct sockaddr_in servaddr[NO_OF_CONNECTIONS];
 char storage_buf[NO_OF_CONNECTIONS][BUFFER_SIZE];
 int options_length = 0;
 int recv_list_size[NO_OF_CONNECTIONS];
-char recv_list_buffer[NO_OF_CONNECTIONS][100];
-char recv_list_buffer_copy[100];
+char recv_list_buffer[NO_OF_CONNECTIONS][200];
+char recv_list_buffer_copy[200];
+char buffer_all_files[200] = {0};
+char buffer_part[NO_OF_CONNECTIONS][BUFFER_SIZE];
+int length_part_file[NO_OF_CONNECTIONS];
+char list_unique_strings[10][15];
+int list_unique_nums[10];
 
 
 //for md5
@@ -146,9 +152,14 @@ int create_sockets(){
 }
 
 
+//comparision function used for qsort
+int cmpfunc( const void *a, const void *b) {
+  return *(char*)a - *(char*)b;
+}
+
+
 int main(int argc, char **argv){
 	int i;
-	char buffer_part[NO_OF_CONNECTIONS][BUFFER_SIZE];
 	int bytes_read[4];
  	int resp[4];
  	int length_authenticate;
@@ -156,9 +167,9 @@ int main(int argc, char **argv){
  	char *temp_str;
  	char filename[20];
  	int length_of_file;
- 	int length_part_file[NO_OF_CONNECTIONS];
  	int flag_authenticate = 0;
  	int folder_length;
+
 
 	//basic check for the arguments
  	if (argc != 2) {
@@ -197,6 +208,8 @@ int main(int argc, char **argv){
 	fgets(options, 20, stdin);
 
 	while(1){
+		username_length = strlen(username);
+
 		if  (!strncmp(options, "LIST", 4))
 			menu_id = 0;
 		else if (!strncmp(options, "PUT ", 4))
@@ -236,6 +249,7 @@ int main(int argc, char **argv){
 			}
 		}
 
+
 		if(flag_authenticate)
 			continue;
 
@@ -252,13 +266,83 @@ int main(int argc, char **argv){
 					}
 
 					for(i=0; i<NO_OF_CONNECTIONS; i++){
+						memset(recv_list_buffer[i], 0, sizeof(recv_list_buffer[i]));
 						recv(sockfd[i], &recv_list_size[i], sizeof(int), 0);
 						recv(sockfd[i], recv_list_buffer[i], recv_list_size[i], 0);
 					}
 
 					printf("LIST OF SERVER FILES: -\n");
 					printf("--------------------------------\n");
-					printf("%s\n\n",recv_list_buffer[3]);				
+					printf("%s\n\n",recv_list_buffer[3]);	
+
+					strcpy(recv_list_buffer_copy, recv_list_buffer[3]);
+					//printf("%s\n\n", recv_list_buffer_copy);
+
+
+					char *str_list_temp;
+
+					//creating a buffer of all the files called buffer_all_files
+					str_list_temp = strtok(strdup(recv_list_buffer_copy), ".");
+					memset(buffer_all_files, 0, sizeof(buffer_all_files));
+
+					int count_line = 0;
+					
+					while(str_list_temp != '\0' && str_list_temp != NULL){
+						if(count_line == 0){
+							str_list_temp = strtok(NULL, "\n");
+							strcat(buffer_all_files, ".");
+							strcat(buffer_all_files, str_list_temp);
+   							strcat(buffer_all_files, "\n");							
+						}
+						else{
+							str_list_temp = strtok(NULL, "/");
+						}
+						
+   						if(count_line == 0){
+							str_list_temp = strtok(NULL, "/");
+							str_list_temp = strtok(NULL, "/");
+							str_list_temp = strtok(NULL, "/");
+   						}
+   						else if(count_line == 1){
+  							str_list_temp = strtok(NULL, "\n");
+  							char temp1[20];
+  							int i = 0;
+  							strcpy(temp1, str_list_temp);
+  							while(*(temp1+i) != '/'){
+  								i++;
+  							}
+  							i++;
+   							strcat(buffer_all_files, temp1+i);
+   							strcat(buffer_all_files, "\n");   							
+   						}
+   						else{
+   							str_list_temp = strtok(NULL, "\n");
+   							strcat(buffer_all_files, str_list_temp);
+   							strcat(buffer_all_files, "\n");
+   						}
+
+						if(count_line == 0){
+							str_list_temp = strtok(NULL, "\n");
+							strcat(buffer_all_files, str_list_temp);
+   							strcat(buffer_all_files, "\n");									
+						}	   					
+						else if((str_list_temp = strtok(NULL, "/")) == NULL){
+							break;
+   						}
+
+						if((str_list_temp = strtok(NULL, "/")) == NULL){
+							break;
+						}
+					
+						count_line++;
+					}
+
+					strcat(buffer_all_files, "\0");
+
+					printf("Buffer all files is :\n");
+					printf("--------------------------\n");
+					printf("%s\n", buffer_all_files);
+
 
 					break;
 			//PUT
