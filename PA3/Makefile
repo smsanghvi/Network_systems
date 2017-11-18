@@ -6,4 +6,4 @@ all: dfserver.c
 
 #clean up the executable created
 clean:
-	rm -rf dfserver .foo.txt.1 .foo.txt.2 .foo.txt.3 .foo.txt.4
+	rm -rf dfserver DFS1 DFS2 DFS3 DFS4

@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <memory.h>
 #include <string.h>
 #include <openssl/md5.h>
@@ -28,9 +29,13 @@ char username_copy[20];
 int username_length;
 char password[20];
 char options[20];
+char combined_file[BUFFER_SIZE];
+char combined_filename[20];
+int combined_length;
 char *str;
 int16_t menu_id = -1;	
-int count = 0, x = 0;
+int count = 0;
+int x = 0;
 int sockfd[NO_OF_CONNECTIONS];
 struct sockaddr_in servaddr[NO_OF_CONNECTIONS];
 char storage_buf[NO_OF_CONNECTIONS][BUFFER_SIZE];
@@ -43,6 +48,7 @@ char buffer_part[NO_OF_CONNECTIONS][BUFFER_SIZE];
 int length_part_file[NO_OF_CONNECTIONS];
 char list_unique_strings[10][15];
 int list_unique_nums[10];
+int recv_file_count[NO_OF_CONNECTIONS];
 
 
 //for md5
@@ -58,11 +64,11 @@ char buf_conf[MAX_CONF_SIZE];
 //computing md5 sum of file and returning modulus of 4
 int md5sum_mod(FILE *fp){
 	MD5_Init(&md5_c);
-    md5_bytes = fread(md5_buf, 512, 1, fp);
+    md5_bytes = fread(md5_buf, 1, 512, fp);
     while(md5_bytes > 0)
     {
             MD5_Update(&md5_c, md5_buf, md5_bytes);
-            md5_bytes = fread(md5_buf, 512, 1, fp);
+            md5_bytes = fread(md5_buf, 1, 512, fp);
     }
 
     MD5_Final(md5_out, &md5_c);
@@ -177,37 +183,41 @@ int main(int argc, char **argv){
   		exit(1);
  	}
 
- 	//opening the conf file
-	FILE *fp = fopen(argv[1], "r");
-	printf("Parsing the client configuration file...\n");
-	parse_conf(fp);
-	fclose(fp);
-
-	strcpy(concat_authenticate, "\n");
-	strcat(concat_authenticate, username);
-	strcat(concat_authenticate, " ");
-	strcat(concat_authenticate, password);
-	length_authenticate = strlen(concat_authenticate);
-	printf("Concat is %s\n", concat_authenticate);
-	printf("Strlen is %d\n", length_authenticate);
-
- 	//creating multiple sockets
- 	if(create_sockets()){
- 		printf("Sockets not created. Exiting...\n");
- 		exit(1);
- 	}
-
-
-	printf("\n-------------------------------------");
-	printf("\nEnter one of these options:\n");
-	printf("LIST\n");	
-	printf("PUT [file_name]\n");	
-	printf("GET [file_name]\n\n");	
-
-	//getting input from user
-	fgets(options, 20, stdin);
+ 	FILE *fp;
 
 	while(1){
+		//opening the conf file
+		fp = fopen(argv[1], "r");
+		//printf("Parsing the client configuration file...\n");
+		parse_conf(fp);
+		fclose(fp);
+
+		strcpy(concat_authenticate, "\n");
+		strcat(concat_authenticate, username);
+		strcat(concat_authenticate, " ");
+		strcat(concat_authenticate, password);
+		length_authenticate = strlen(concat_authenticate);
+		//printf("Concat is %s\n", concat_authenticate);
+		//printf("Strlen is %d\n", length_authenticate);
+
+ 		//creating multiple sockets
+ 		if(create_sockets()){
+ 			printf("Sockets not created. Exiting...\n");
+ 			exit(1);
+ 		}
+
+
+		printf("\n-------------------------------------");
+		printf("\nEnter one of these options:\n");
+		printf("LIST\n");	
+		printf("PUT [file_name]\n");	
+		printf("GET [file_name]\n\n");	
+
+		//getting input from user
+		memset(options, 0, sizeof(options));
+		fgets(options, 20, stdin);
+
+	//while(1){
 		username_length = strlen(username);
 
 		if  (!strncmp(options, "LIST", 4))
@@ -339,9 +349,48 @@ int main(int argc, char **argv){
 
 					strcat(buffer_all_files, "\0");
 
+
 					printf("Buffer all files is :\n");
 					printf("--------------------------\n");
 					printf("%s\n", buffer_all_files);
+
+					FILE *fp3 = fopen("temp.txt", "w");
+					fwrite(buffer_all_files, sizeof(char), strlen(buffer_all_files), fp3);
+					fclose(fp3);
+
+					/*char line1[100];
+					char line2[100];
+					char line_temp1[100];
+					int count = 0;
+					char line_temp2[100];
+					char unique_arr[10][100];
+					int unique_arr_cnt[10];
+					int len1, len2, last_line1, last_line2;
+					fp3 = fopen("temp.txt", "r");
+					while(fgets(line1, 150, fp3)){
+						len1 = strlen(line1);
+						fgets(line2, 150, fp3 );
+						len2 = strlen(line2);
+						printf("Last character of line1 is %c\n", line1[len1-2]);
+						memset(line_temp1, 0, strlen(line_temp1));
+						memcpy(line_temp1, line1, len1 - 2);
+						memset(line_temp2, line2, len2 - 2);
+						if(!strcmp(line_temp1, line_temp2)){
+							if(line1[len1-2] != line2[len2-2]){
+								unique_arr[]
+							}
+						}
+						else{
+							strcpy(unique_arr[count], line1);
+							//strcpy(unique_arr[count], line1);
+							count++; 
+							strcpy(unique_arr[count], line2);
+							count++;
+						}
+						printf("line temp 1 is %s\n", line_temp1);
+					}
+					fclose(fp3);*/
+
 
 
 					break;
@@ -504,6 +553,286 @@ int main(int argc, char **argv){
 			//GET
 			case 2:
 					printf("\n");
+					int rec_filename_length[NO_OF_CONNECTIONS];
+					char rec_filename[NO_OF_CONNECTIONS][20];
+					int rec_file_length[NO_OF_CONNECTIONS];
+					char rec_file_content[NO_OF_CONNECTIONS][BUFFER_SIZE];
+					char temp_arr[BUFFER_SIZE];
+					for(i=0; i<NO_OF_CONNECTIONS;i++){
+						folder_length = strlen(folder[i]);				
+						//sending the length of the folder
+						send(sockfd[i], &folder_length, sizeof(int), 0);
+						//sending the folder name
+						send(sockfd[i], folder[i], folder_length, 0);
+					}
+
+					//receiving the number of unique files from each server
+					for(i=0; i<NO_OF_CONNECTIONS;i++){
+						recv(sockfd[i], &recv_file_count[i], sizeof(int), 0);
+						printf("File count for server %d is %d\n", i, recv_file_count[i] );
+					}
+
+					for(i=0; i<NO_OF_CONNECTIONS;i++){
+						//receive the length of filename
+						//while(recv_file_count[i]>0){
+							memset(rec_filename[i], 0, sizeof(rec_filename[i]));
+							memset(rec_file_content[i], 0, sizeof(rec_file_content[i]));
+							recv(sockfd[i], &rec_filename_length[i], sizeof(int), 0);
+							if(recv(sockfd[i], rec_filename[i], rec_filename_length[i], 0) > 0){
+								printf("Filename for %d and instance %d is %s\n", i, recv_file_count[i], rec_filename[i]);
+								//check if file exists
+								if( access( rec_filename[i], F_OK ) == -1 ) {
+									//file does not exist
+									recv(sockfd[i], &rec_file_length[i], sizeof(int), 0);
+									printf("File length for %d and instance %d is %d\n", i, recv_file_count[i], rec_file_length[i]);
+									recv(sockfd[i], rec_file_content[i], rec_file_length[i], 0);
+									rec_file_content[i][rec_file_length[i]] = '\0'; 
+									fp = fopen(rec_filename[i], "w");
+									fwrite(rec_file_content[i], sizeof(char), rec_file_length[i], fp);
+									fclose(fp);
+								}
+								else{
+									//file already exists
+									printf("File %s already exists.\n", rec_filename[i]);
+									memset(temp_arr, 0, sizeof(temp_arr));
+									fp = fopen(rec_filename[i], "r");
+									fread(temp_arr, sizeof(char), rec_file_length[i], fp);
+									fclose(fp);
+									if(!isprint(temp_arr[0])){
+										printf("%s has unprintable characters. Replacing it...\n", rec_filename[i]);
+										char rm_buf[100];
+										sprintf(rm_buf, "rm %s", rec_filename[i]);
+										system(rm_buf);
+										recv(sockfd[i], &rec_file_length[i], sizeof(int), 0);
+										printf("File length for %d and instance %d is %d\n", i, recv_file_count[i], rec_file_length[i]);
+										recv(sockfd[i], rec_file_content[i], rec_file_length[i], 0);
+										rec_file_content[i][rec_file_length[i]] = '\0'; 
+										fp = fopen(rec_filename[i], "w");
+										fwrite(rec_file_content[i], sizeof(char), rec_file_length[i], fp);
+										fclose(fp);									
+									}							
+								}
+								printf("-------------------------------------\n");
+							}
+
+							recv_file_count[i]--;
+
+							if(recv_file_count[i] > 0){
+								memset(rec_filename[i], 0, sizeof(rec_filename[i]));
+								memset(rec_file_content[i], 0, sizeof(rec_file_content[i]));
+								recv(sockfd[i], &rec_filename_length[i], sizeof(int), 0);
+								if(recv(sockfd[i], rec_filename[i], rec_filename_length[i], 0) > 0){
+									printf("AGAIN!!!\n");
+									printf("Filename for %d and instance %d is %s\n", i, recv_file_count[i], rec_filename[i]);
+									//check if file exists
+									if( access( rec_filename[i], F_OK ) == -1 ) {
+										//file does not exist
+										recv(sockfd[i], &rec_file_length[i], sizeof(int), 0);
+										printf("File length for %d and instance %d is %d\n", i, recv_file_count[i], rec_file_length[i]);
+										rec_file_content[i][rec_file_length[i]] = '\0'; 
+										fp = fopen(rec_filename[i], "w");
+										fwrite(rec_file_content[i], sizeof(char), rec_file_length[i], fp);
+										fclose(fp);
+									}
+									else{
+										//file exists
+										printf("File %s already exists.\n", rec_filename[i]);
+										memset(temp_arr, 0, sizeof(temp_arr));
+										fp = fopen(rec_filename[i], "r");
+										fread(temp_arr, sizeof(char), rec_file_length[i], fp);
+										fclose(fp);
+										if(!isprint(temp_arr[0])){
+											printf("%s has unprintable characters\n", rec_filename[i]);										
+											char rm_buf[100];
+											sprintf(rm_buf, "rm %s", rec_filename[i]);
+											system(rm_buf);
+											recv(sockfd[i], &rec_file_length[i], sizeof(int), 0);
+											printf("File length for %d and instance %d is %d\n", i, recv_file_count[i], rec_file_length[i]);
+											recv(sockfd[i], rec_file_content[i], rec_file_length[i], 0);
+											rec_file_content[i][rec_file_length[i]] = '\0'; 
+											fp = fopen(rec_filename[i], "w");
+											fwrite(rec_file_content[i], sizeof(char), rec_file_length[i], fp);
+											fclose(fp);											
+										}										
+									}
+									printf("-------------------------------------\n");
+								}							
+							}				
+						//}					
+					}
+
+					//printf("options is %s\n", options);
+					char *name;
+					char name_arr[20], temp_sprintf[20], rec_name0[20], rec_name1[20], rec_name2[20], rec_name3[20];
+					int len_0, len_1, len_2, len_3, temp_cnt=0;
+					strtok(options, " ");
+					name = strtok(NULL, " \n");
+					strcpy(name_arr, name);
+					printf("name is %s\n", name_arr);
+					sprintf(temp_sprintf, ".%s", name_arr);
+					sprintf(rec_name0, "%s.0", temp_sprintf);
+					sprintf(rec_name1, "%s.1", temp_sprintf);
+					sprintf(rec_name2, "%s.2", temp_sprintf);
+					sprintf(rec_name3, "%s.3", temp_sprintf);
+
+					printf("rec_name0 is %s \n", rec_name0);
+					printf("rec_name1 is %s \n", rec_name1);
+					printf("rec_name2 is %s \n", rec_name2);
+					printf("rec_name3 is %s \n", rec_name3);
+					//recombining the file
+					char temp_parts[BUFFER_SIZE];
+					//for(i=0; i<NO_OF_CONNECTIONS;i++){
+					printf("x is %d\n", x);
+						//if(x == 3){
+							/*if( (access( rec_name0, F_OK ) != -1 ) && \
+							(access( rec_name1, F_OK ) != -1 ) && (access( rec_name2, F_OK ) != -1 ) \
+							&& (access( rec_name3, F_OK ) != -1 )){ 
+								//file exists
+								printf("Complete file exists.\n");
+								fp = fopen(rec_name1, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_1 = file_length(fp);
+								fread(temp_parts, sizeof(char), len_1, fp );
+								printf("1 is: %s\n", temp_parts);
+								strcat(combined_file, temp_parts);
+								fclose(fp);
+								fp = fopen(rec_name0, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_2 = file_length(fp);								
+								fread(temp_parts, sizeof(char), len_2, fp );
+								printf("2 is: %s\n", temp_parts);								
+								strcat(combined_file, temp_parts);
+								fclose(fp);
+								fp = fopen(rec_name3, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_3 = file_length(fp);								
+								fread(temp_parts, sizeof(char), len_3, fp );
+								printf("3 is: %s\n", temp_parts);
+								strcat(combined_file, temp_parts);
+								fclose(fp);
+								fp = fopen(rec_name0, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_0 = file_length(fp);
+								fread(temp_parts, sizeof(char), len_0, fp );
+								printf("4 is: %s\n", temp_parts);
+								strcat(combined_file, temp_parts);
+								fclose(fp);
+								strcat(combined_file, "\0");
+
+								printf("Total file is :\n");
+								printf("-------------------------------------------\n");
+								printf("%s\n", combined_file);
+								//fp = fopen()
+
+							}
+							else{
+								printf("Incomplete.\n");
+							}*/
+						//}
+						if(x == 1){
+							if( (access( rec_name0, F_OK ) != -1 ) && \
+							(access( rec_name1, F_OK ) != -1 ) && (access( rec_name2, F_OK ) != -1 ) \
+							&& (access( rec_name3, F_OK ) != -1 )){ 
+								//file exists
+								temp_cnt = 0;
+								memset(combined_file, 0, sizeof(combined_file));
+								printf("Complete file exists.\n");
+								fp = fopen(rec_name1, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_2 = file_length(fp);								
+								len_2 = fread(temp_parts, sizeof(char), len_2, fp );
+								printf("2 is: %s and len2 is %d\n", temp_parts, len_2);								
+								strcat(combined_file, temp_parts);
+								fclose(fp);
+								fp = fopen(rec_name2, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_3 = file_length(fp);								
+								len_3 = fread(temp_parts, sizeof(char), len_3 , fp );
+								printf("3 is: %s and len3 is %d\n", temp_parts, len_3);
+								strcat(combined_file, temp_parts);
+								fclose(fp);
+								fp = fopen(rec_name3, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_0 = file_length(fp);
+								len_0 = fread(temp_parts, sizeof(char), len_0, fp );
+								printf("4 is: %s and len0 is %d\n", temp_parts, len_0);
+								strcat(combined_file, temp_parts);
+								fclose(fp);
+								fp = fopen(rec_name0, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_1 = file_length(fp);
+								len_1 = fread(temp_parts, sizeof(char), len_1, fp );
+								if(temp_parts[0]=='\0'){
+									temp_cnt++;
+								}
+								printf("1 is: %s and len1 is %d\n", (temp_parts+temp_cnt), len_1);
+								strcat(combined_file, (temp_parts+temp_cnt));
+								fclose(fp);
+								strcat(combined_file, "\0");
+
+								//printf("Total file is :\n");
+								//printf("-------------------------------------------\n");
+								printf("%s\n", combined_file);
+								fp = fopen("modified_text.txt", "w");
+								fwrite(combined_file, sizeof(char), strlen(combined_file), fp);
+								fclose(fp);
+
+							}
+							else{
+								printf("Incomplete.\n");
+							}							
+						}
+						else if(x == 2){
+							if( (access( rec_name0, F_OK ) != -1 ) && \
+							(access( rec_name1, F_OK ) != -1 ) && (access( rec_name2, F_OK ) != -1 ) \
+							&& (access( rec_name3, F_OK ) != -1 )){ 
+								//file exists
+								temp_cnt = 0;
+								memset(combined_file, 0, sizeof(combined_file));
+								printf("Complete file exists.\n");
+								fp = fopen(rec_name1, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_2 = file_length(fp);								
+								len_2 = fread(temp_parts, sizeof(char), len_2, fp );
+								printf("1 is: %s and len2 is %d\n", temp_parts, len_2);								
+								strcat(combined_file, temp_parts);
+								fclose(fp);
+								fp = fopen(rec_name2, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_3 = file_length(fp);								
+								len_3 = fread(temp_parts, sizeof(char), len_3 , fp );
+								printf("2 is: %s and len3 is %d\n", temp_parts, len_3);
+								strcat(combined_file, temp_parts);
+								fclose(fp);
+								fp = fopen(rec_name3, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_0 = file_length(fp);
+								len_0 = fread(temp_parts, sizeof(char), len_0, fp );
+								printf("3 is: %s and len0 is %d\n", temp_parts, len_0);
+								strcat(combined_file, temp_parts);
+								fclose(fp);
+								fp = fopen(rec_name0, "r");
+								memset(temp_parts, 0, sizeof(temp_parts));
+								len_1 = file_length(fp);
+								len_1 = fread(temp_parts, sizeof(char), len_1, fp );
+								printf("0 is: %s and len1 is %d\n", (temp_parts), len_1);
+								strcat(combined_file, (temp_parts+temp_cnt));
+								fclose(fp);
+								strcat(combined_file, "\0");
+
+								//printf("Total file is :\n");
+								//printf("-------------------------------------------\n");
+								printf("%s\n", combined_file);
+								fp = fopen("modified_text.txt", "w");
+								fwrite(combined_file, sizeof(char), strlen(combined_file), fp);
+								fclose(fp);
+
+							}
+							else{
+								printf("Incomplete.\n");
+							}							
+						}
+					//}
 
 					break;
 			//default
@@ -513,7 +842,16 @@ int main(int argc, char **argv){
 					printf("Enter option correctly.\n");		
 		}
 
-		break;
+	/*printf("\n-------------------------------------");
+	printf("\nEnter one of these options:\n");
+	printf("LIST\n");	
+	printf("PUT [file_name]\n");	
+	printf("GET [file_name]\n\n");	
+
+	//getting input from user
+	memset(options, 0, sizeof(options));
+	fgets(options, 20, stdin);*/
+		//break;
 	}
 
 
