@@ -324,7 +324,7 @@ int main(int argc, char **argv){
 						}
 
 						char *recv_usr = recv_username;
-						recv_usr[strlen(recv_usr)] = 0;
+						recv_usr[strlen(recv_usr)] = '\0';
 
 						if(x == 0){
 							//file 1
@@ -414,7 +414,8 @@ int main(int argc, char **argv){
 							system(buff);
 							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 							fp1 = fopen(buff, "w");
-							fwrite(part_file_content, sizeof(char), recv_filelength, fp1);
+							//it was: fwrite(part_file_content, sizeof(char), recv_filelength, fp1);
+							fwrite(part_file_content, sizeof(char), recv_filelength1, fp1);
 							fclose(fp1);
 
 						}	
@@ -461,7 +462,7 @@ int main(int argc, char **argv){
 							system(buff);
 							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 							fp1 = fopen(buff, "w");
-							fwrite(part_file_content, sizeof(char), recv_filelength, fp1);
+							fwrite(part_file_content, sizeof(char), recv_filelength1, fp1);
 							fclose(fp1);
 
 						}	
@@ -508,7 +509,7 @@ int main(int argc, char **argv){
 							system(buff);
 							sprintf(buff, "%s/%s/%s", p, recv_usr, part_file_name);
 							fp1 = fopen(buff, "w");
-							fwrite(part_file_content, sizeof(char), recv_filelength, fp1);
+							fwrite(part_file_content, sizeof(char), recv_filelength1, fp1);
 							fclose(fp1);
 						}
 
@@ -561,7 +562,7 @@ int main(int argc, char **argv){
 									if(strstr(line_buf, ptr_req_filename)!=NULL){
 										//sprintf(file_path, "%s/%s/%s", p, recv_username, ptr_req_filename);
 										count_instances++;
-										printf("%s\n", line_buf);
+										//printf("%s\n", line_buf);
 									}
 								}
 							}
@@ -585,20 +586,20 @@ int main(int argc, char **argv){
 										//sending filename
 										printf("File name to send is %s\n", line_buf);
 										send(sock_connect, line_buf, len_name, 0);
+										memset(line_buf, 0, sizeof(line_buf));
 										fp1 = fopen(file_path, "r");
 										length_of_file = file_length(fp1);
 										length_of_file++;
 										len_file_read = fread(data_part_file, sizeof(char), length_of_file, fp1);
 										fclose(fp1);
 										data_part_file[len_file_read] = '\0';
-										printf("data part is %s and length is %d\n", data_part_file, len_file_read);
 										//sending the length of file
 										send(sock_connect, &len_file_read, sizeof(int), 0);
 										printf("length of data sent is %d\n", len_file_read);
 										//len_file_read = 0;
 										//sending the part file
 										send(sock_connect, data_part_file, len_file_read, 0);
-										printf("data sent out: %s\n", data_part_file);
+										//printf("data sent out: %s\n", data_part_file);
 										//memset(data_part_file, 0, strlen(data_part_file));
 									}		
 								}
