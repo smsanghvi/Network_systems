@@ -23,8 +23,8 @@
 #define BACKLOG 10
 
 struct sockaddr_in local, remote;
-int sock_listen;   //socket descriptor
-int sock_connect;  //socket descriptor
+int sock_listen = -1;   //socket descriptor
+int sock_connect = -1;  //socket descriptor
 char folder[20];
 int port_no;
 int x;
@@ -144,17 +144,26 @@ int main(int argc, char **argv){
  
 	remote_len = sizeof remote;
 
-	//listening for new connections
-	if(listen(sock_listen, BACKLOG)){
-		printf("Unable to listen for connections.\n");
-	}
-	else{
-		printf("Listening for incoming connections...");
-	}
+	// //listening for new connections
+	// if(listen(sock_listen, BACKLOG)){
+	// 	printf("Unable to listen for connections.\n");
+	// }
+	// else{
+	// 	printf("Listening for incoming connections...");
+	// }
 
 	printf("\n");
 
 	while(1){
+
+		//listening for new connections
+		if(listen(sock_listen, BACKLOG)){
+			printf("Unable to listen for connections.\n");
+		}
+		else{
+			printf("Listening for incoming connections...");
+		}
+		
 		//accept a connection
 		setsockopt(sock_listen, SOL_SOCKET, SO_REUSEADDR, (const void *)&temp , sizeof(int)); 
 
@@ -621,9 +630,13 @@ int main(int argc, char **argv){
 
 			}//end of switch case	
 			printf("At the end.\n");
-
+			close(sock_connect);
+			sock_connect = -1;
 		}//end of fork call
 	}//end of while loop
+
+	close(sock_listen);
+	sock_listen = -1;
 
 	return 0;
 }

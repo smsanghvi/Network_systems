@@ -1,3 +1,7 @@
 .
+./.foo.txt.0
+./.foo1.txt.2
+./.foo.txt.3
+./.foo1.txt.3
 ./.file.txt.1
 ./.file.txt.2

@@ -27,19 +27,16 @@ int port[NO_OF_CONNECTIONS];
 char username[20];
 char username_copy[20];
 int username_length;
-char password[20];
-char options[20];
+char password[20], options[20];
 char combined_file[BUFFER_SIZE];
 char combined_filename[20];
-int combined_length;
+int combined_length, options_length = 0;
 char *str;
 int16_t menu_id = -1;	
-int count = 0;
-int x = 0;
-int sockfd[NO_OF_CONNECTIONS];
+int count = 0, x = 0;;
+int sockfd[NO_OF_CONNECTIONS] = {-1};
 struct sockaddr_in servaddr[NO_OF_CONNECTIONS];
 char storage_buf[NO_OF_CONNECTIONS][BUFFER_SIZE];
-int options_length = 0;
 int recv_list_size[NO_OF_CONNECTIONS];
 char recv_list_buffer[NO_OF_CONNECTIONS][200];
 char recv_list_buffer_copy[200];
@@ -157,11 +154,6 @@ int create_sockets(){
  	return 0;
 }
 
-
-//comparision function used for qsort
-int cmpfunc( const void *a, const void *b) {
-  return *(char*)a - *(char*)b;
-}
 
 
 int main(int argc, char **argv){
@@ -286,7 +278,6 @@ int main(int argc, char **argv){
 					printf("%s\n\n",recv_list_buffer[3]);	
 
 					strcpy(recv_list_buffer_copy, recv_list_buffer[3]);
-					//printf("%s\n\n", recv_list_buffer_copy);
 
 
 					char *str_list_temp;
@@ -348,55 +339,149 @@ int main(int argc, char **argv){
 					}
 
 					strcat(buffer_all_files, "\0");
+					count_line+=2;	//optimization
 
-
-					printf("Buffer all files is :\n");
+					/*printf("Buffer all files is :\n");
 					printf("--------------------------\n");
-					printf("%s\n", buffer_all_files);
+					printf("%s\n", buffer_all_files);*/
 
 					FILE *fp3 = fopen("temp.txt", "w");
 					fwrite(buffer_all_files, sizeof(char), strlen(buffer_all_files), fp3);
 					fclose(fp3);
 
-					/*char line1[100];
-					char line2[100];
-					char line_temp1[100];
-					int count = 0;
-					char line_temp2[100];
-					char unique_arr[10][100];
-					int unique_arr_cnt[10];
-					int len1, len2, last_line1, last_line2;
+					char buffer_files_copy[200];
+					strcpy(buffer_files_copy, buffer_all_files);
+
+					char line1[100];
+					char *line_ptr1, *line_ptr2;
+					char line_ptr_combined[100]; 
+					char original_filenames[10][100];
+					int count_original_files = 0;
+					int ind = 0, count_loop = 0;
+					char *status1, *temp1;
+
 					fp3 = fopen("temp.txt", "r");
-					while(fgets(line1, 150, fp3)){
-						len1 = strlen(line1);
-						fgets(line2, 150, fp3 );
-						len2 = strlen(line2);
-						printf("Last character of line1 is %c\n", line1[len1-2]);
-						memset(line_temp1, 0, strlen(line_temp1));
-						memcpy(line_temp1, line1, len1 - 2);
-						memset(line_temp2, line2, len2 - 2);
-						if(!strcmp(line_temp1, line_temp2)){
-							if(line1[len1-2] != line2[len2-2]){
-								unique_arr[]
-							}
-						}
-						else{
-							strcpy(unique_arr[count], line1);
-							//strcpy(unique_arr[count], line1);
-							count++; 
-							strcpy(unique_arr[count], line2);
-							count++;
-						}
-						printf("line temp 1 is %s\n", line_temp1);
+					memset(line1, 0, sizeof(line1));
+
+					do {
+						memset(line1, 0, sizeof(line1));
+					    status1 = fgets(line1, sizeof(line1), fp3);
+					    line_ptr1 = strtok_r(line1, ".", &temp1);
+					   	line_ptr2 = strtok_r(NULL, ".", &temp1);
+					   	sprintf(line_ptr_combined, "%s.%s", line_ptr1, line_ptr2);
+					    //printf("line is %s\n", line_ptr_combined);
+					    for(ind = 0; ind<count_original_files+1; ind++){
+					    	//if matching, then break
+					    	if(!strncmp(original_filenames[ind], line_ptr_combined, strlen(line_ptr_combined))){
+					    		break;
+					    	}
+					    }
+					    if(ind == count_original_files+1){
+						    strcpy(original_filenames[count_original_files], line_ptr_combined);
+						    ++count_original_files;
+					    }
+	
+						memset(line_ptr_combined, 0, sizeof(line_ptr_combined));
+						count_loop++;
+					} while (status1 && count_loop<count_line);
+					
+					fclose(fp3);
+
+					/*printf("LIST OF ORIGINAL FILES:\n");
+					printf("----------------------------\n");
+					for(ind=0; ind<count_original_files; ind++){
+						printf("%s\n", original_filenames[ind]);
 					}
-					fclose(fp3);*/
+					printf("\n");*/
+
+					static int counts_arr[10];
+					char line2[100];
+					char temp_arr2[100];
+					int n = 0;
+
+					//iterating over the counts array
+					for(n = 0; n < count_original_files; n++){
+						memset(temp_arr2, 0, sizeof(temp_arr2));
+						sprintf(temp_arr2, ".%s.0", original_filenames[n]);
+						count_loop = 0;
+						fp3 = fopen("temp.txt", "r");
+						do{
+							memset(line2, 0, sizeof(line2));
+					    	status1 = fgets(line2, sizeof(line2), fp3);
+							count_loop++;
+							if(!strncmp(temp_arr2, line2, strlen(line2)-1)){
+								counts_arr[n] += 1;
+								break;
+							}
+						}while(status1 && count_loop<count_line);
+						fclose(fp3);
+
+						memset(temp_arr2, 0, sizeof(temp_arr2));
+						sprintf(temp_arr2, ".%s.1", original_filenames[n]);
+						count_loop = 0;
+						fp3 = fopen("temp.txt", "r");
+						do{
+							memset(line2, 0, sizeof(line2));
+					    	status1 = fgets(line2, sizeof(line2), fp3);
+							count_loop++;
+							if(!strncmp(temp_arr2, line2, strlen(line2)-1)){
+								counts_arr[n] += 1;
+								break;
+							}
+						}while(status1 && count_loop<count_line);
+						fclose(fp3);
+
+						memset(temp_arr2, 0, sizeof(temp_arr2));
+						sprintf(temp_arr2, ".%s.2", original_filenames[n]);
+						count_loop = 0;
+						fp3 = fopen("temp.txt", "r");
+						do{
+							memset(line2, 0, sizeof(line2));
+					    	status1 = fgets(line2, sizeof(line2), fp3);
+							count_loop++;
+							if(!strncmp(temp_arr2, line2, strlen(line2)-1)){
+								counts_arr[n] += 1;
+								break;
+							}
+						}while(status1 && count_loop<count_line);
+						fclose(fp3);
+
+						memset(temp_arr2, 0, sizeof(temp_arr2));
+						sprintf(temp_arr2, ".%s.3", original_filenames[n]);
+						count_loop = 0;
+						fp3 = fopen("temp.txt", "r");
+						do{
+							memset(line2, 0, sizeof(line2));
+					    	status1 = fgets(line2, sizeof(line2), fp3);
+							count_loop++;
+							if(!strncmp(temp_arr2, line2, strlen(line2)-1)){
+								counts_arr[n] += 1;
+								break;
+							}
+						}while(status1 && count_loop<count_line);
+						fclose(fp3);												
+					}					
 
 
+					//final decision on files being complete or incomplete
+					printf("STATUS OF FILES ON SERVER:\n");
+					printf("---------------------------\n");
+
+					int r = 0;
+					for(r=0; r<count_original_files; r++){
+						if(counts_arr[r] >= NO_OF_CONNECTIONS)
+							printf("%s [complete]\n", original_filenames[r]);
+						else
+							printf("%s [incomplete]\n", original_filenames[r]);
+					}
+
+					printf("\n\n");
 
 					break;
 			//PUT
 			case 1:
 					printf("\n");
+					printf("PUT option - check\n");
 
 					temp_str = strtok(options, " ");
 					temp_str = strtok(NULL, " \n");
@@ -690,41 +775,41 @@ int main(int argc, char **argv){
 						memset(temp_parts, 0, sizeof(temp_parts));
 						len_2 = file_length(fp);								
 						len_2 = fread(temp_parts, sizeof(char), len_2, fp );
-						static int i = 0;
-						while(temp_parts[i]=='\0')
-							i++;
+						static int d = 0;
+						while(temp_parts[d]=='\0')
+							d++;
 						//printf("1 is: %s and len2 is %d\n", temp_parts + i, len_2);								
-						strcat(combined_file, temp_parts + i);
+						strcat(combined_file, temp_parts + d);
 						fclose(fp);
 						fp = fopen(rec_name2, "r");
 						memset(temp_parts, 0, sizeof(temp_parts));
 						len_3 = file_length(fp);								
 						len_3 = fread(temp_parts, sizeof(char), len_3 , fp );
-						i = 0;
-						while(temp_parts[i]=='\0')
-							i++;
+						d = 0;
+						while(temp_parts[d]=='\0')
+							d++;
 						//printf("2 is: %s and len3 is %d\n", temp_parts + i, len_3);
-						strcat(combined_file, temp_parts + i);
+						strcat(combined_file, temp_parts + d);
 						fclose(fp);
 						fp = fopen(rec_name3, "r");
 						memset(temp_parts, 0, sizeof(temp_parts));
 						len_0 = file_length(fp);
 						len_0 = fread(temp_parts, sizeof(char), len_0, fp );
-						i = 0;
-						while(temp_parts[i]=='\0')
-							i++;
+						d = 0;
+						while(temp_parts[d]=='\0')
+							d++;
 						//printf("3 is: %s and len0 is %d\n", temp_parts + i, len_0);
-						strcat(combined_file, temp_parts + i);
+						strcat(combined_file, temp_parts + d);
 						fclose(fp);
 						fp = fopen(rec_name0, "r");
 						memset(temp_parts, 0, sizeof(temp_parts));
 						len_1 = file_length(fp);
 						len_1 = fread(temp_parts, sizeof(char), len_1, fp );
-						i = 0;
-						while(temp_parts[i]=='\0')
-							i++;
+						d = 0;
+						while(temp_parts[d]=='\0')
+							d++;
 						//printf("0 is: %s and len1 is %d\n", temp_parts + i, len_1);
-						strcat(combined_file, temp_parts + i);
+						strcat(combined_file, temp_parts + d);
 						fclose(fp);
 						strcat(combined_file, "\0");
 
@@ -748,6 +833,13 @@ int main(int argc, char **argv){
 			default:
 					printf("\n");		
 					printf("Enter option correctly.\n");		
+		}
+
+		//closing the socket
+		int y = 0;
+		for(y=0; y< NO_OF_CONNECTIONS; y++){
+			close(sockfd[y]);
+			sockfd[y] = -1;
 		}
 
 	}
