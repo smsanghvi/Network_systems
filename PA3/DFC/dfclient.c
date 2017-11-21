@@ -1,3 +1,21 @@
+/*****************************************************************************
+​ * ​ ​ Copyright​ ​ (C)​ ​ 2017​ ​ by​ ​ Snehal Sanghvi
+​ *
+​ * ​ ​  Users​ ​ are  ​ permitted​ ​ to​ ​ modify​ ​ this​ ​ and​ ​ use​ ​ it​ ​ to​ ​ learn​ ​ about​ ​ the​ ​ field​ ​ of​ ​ embedded
+​ * ​ ​ software.​ ​ Snehal Sanghvi​ ​ and​ ​ the​ ​ University​ ​ of​ ​ Colorado​ ​ are​ ​ not​ ​ liable​ ​ for​ ​ any​ ​ misuse​ ​ of​ ​ this​ ​ material.
+​ *
+*****************************************************************************/
+/**
+​ * ​ ​ @file​ ​ dfclient.c
+​ * ​ ​ @brief​ ​ Source file having the client implementation of the distributed file system
+​​ * ​ ​ @author​ ​ Snehal Sanghvi
+​ * ​ ​ @date​ ​ November ​ 21 ​ 2017
+​ * ​ ​ @version​ ​ 1.0
+​ *   @compiler used to process code: GCC compiler
+ *	 @functionality implemented: 
+ 	 Created the client side of the Distributed File System
+​ */
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -21,6 +39,7 @@
 #define BUFFER_SIZE 1000000
 #define NO_OF_CONNECTIONS 4
 
+//macro to turn on/off the encryption featuer
 //#define ENCRYPTION 1
 
 int flag = -1;
@@ -146,7 +165,6 @@ int create_sockets(){
   			perror("Problem in creating the socket");
   			active --;
   			flag = i;
-  			//return 1;
   			continue;
  		}	
 
@@ -159,7 +177,6 @@ int create_sockets(){
  		//Connection of the client to the socket 
  		if (connect(sockfd[i], (struct sockaddr *) &servaddr[i], sizeof(servaddr[i])) == -1) {
   			perror("Problem in connecting to the server");
-  			//return 1;
   			flag = i;
   			close(sockfd[i]);
   			continue;
@@ -220,6 +237,7 @@ int main(int argc, char **argv){
  		}
 
 
+ 		//menu like interface
 		printf("\n-------------------------------------");
 		printf("\nEnter one of these options:\n");
 		printf("LIST\n");	
@@ -230,7 +248,6 @@ int main(int argc, char **argv){
 		memset(options, 0, sizeof(options));
 		fgets(options, 20, stdin);
 
-	//while(1){
 		username_length = strlen(username);
 
 		if  (!strncmp(options, "LIST", 4))
@@ -293,7 +310,7 @@ int main(int argc, char **argv){
 		}
 
 		switch(menu_id){
-			//LIST
+			//LIST feature
 			case 0:
 					printf("\n");
 
@@ -318,6 +335,8 @@ int main(int argc, char **argv){
 						send(sockfd[i], folder[i], folder_length, 0);
 					}
 
+
+					//receiving the entire buffer of filenames and length
 					for(i=0; i<NO_OF_CONNECTIONS; i++){
 						if(i==flag)
 							continue;
@@ -341,6 +360,7 @@ int main(int argc, char **argv){
 
 					int count_line = 0;
 					
+					//extracting relevant data like only the filename from the buffer above
 					while(str_list_temp != '\0' && str_list_temp != NULL){
 						if(count_line == 0){
 							str_list_temp = strtok(NULL, "\n");
@@ -540,7 +560,7 @@ int main(int argc, char **argv){
 
 
 					break;
-			//PUT
+			//PUT functionality
 			case 1:
 					printf("\n");
 					printf("PUT option - check\n");
@@ -558,6 +578,8 @@ int main(int argc, char **argv){
 					//obtaining file length in bytes
 					fp = fopen(filename, "r");
 					length_of_file = file_length(fp);
+
+					//calculating md5sum of file content and performing modulus of 4
 					x = md5sum_mod(fp);
 					printf("x is %d\n", x);
 					printf("Length of %s is %d\n", filename, length_of_file);
@@ -627,6 +649,7 @@ int main(int argc, char **argv){
 							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
 							strcpy(buffer_part[i], storage_buf[i]);
 
+							//encrypting data part before sending it out to the server
 							#ifdef ENCRYPTION
 							dataLen = length_part_file[i];
 							loop_cnt = 0;
@@ -889,6 +912,7 @@ int main(int argc, char **argv){
 								fp = fopen(rec_filename[i], "r");
 								fread(temp_arr, sizeof(char), rec_file_length[i], fp);
 								fclose(fp);
+								//check if the previous copy was good and had printable characters
 								if(!isprint(temp_arr[0])){
 									printf("%s has unprintable characters. Replacing it...\n", rec_filename[i]);
 									char rm_buf[100];
@@ -1023,6 +1047,8 @@ int main(int argc, char **argv){
 						//combined file
 						char received_file[20];
 						sprintf(received_file, "received_%s", name_arr);
+
+						//writing to a file
 						fp = fopen(received_file, "w");
 						fwrite(combined_file, sizeof(char), strlen(combined_file), fp);
 						fclose(fp);

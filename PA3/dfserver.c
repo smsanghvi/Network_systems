@@ -1,3 +1,21 @@
+/*****************************************************************************
+​ * ​ ​ Copyright​ ​ (C)​ ​ 2017​ ​ by​ ​ Snehal Sanghvi
+​ *
+​ * ​ ​  Users​ ​ are  ​ permitted​ ​ to​ ​ modify​ ​ this​ ​ and​ ​ use​ ​ it​ ​ to​ ​ learn​ ​ about​ ​ the​ ​ field​ ​ of​ ​ embedded
+​ * ​ ​ software.​ ​ Snehal Sanghvi​ ​ and​ ​ the​ ​ University​ ​ of​ ​ Colorado​ ​ are​ ​ not​ ​ liable​ ​ for​ ​ any​ ​ misuse​ ​ of​ ​ this​ ​ material.
+​ *
+*****************************************************************************/
+/**
+​ * ​ ​ @file​ ​ dfserver.c
+​ * ​ ​ @brief​ ​ Source file having the server implementation of the distributed file system
+​​ * ​ ​ @author​ ​ Snehal Sanghvi
+​ * ​ ​ @date​ ​ November ​ 21 ​ 2017
+​ * ​ ​ @version​ ​ 1.0
+​ *   @compiler used to process code: GCC compiler
+ *	 @functionality implemented: 
+ 	 Created the server side of the Distributed File System
+​ */
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -39,6 +57,7 @@ char key[20];
 int keyLen;
 int dataLen;
 int loop_cnt;
+
 
 //return a folder after creating it - if it doesnt exist
 char *return_directory(char *p, char *username){
@@ -159,11 +178,11 @@ int main(int argc, char **argv){
 
 	printf("\n");
 
-	while(1){
-		
-		//accept a connection
+	while(1){		
+		//helps remove binding errors
 		setsockopt(sock_listen, SOL_SOCKET, SO_REUSEADDR, (const void *)&temp , sizeof(int)); 
 
+		//accept a connection
 		printf("\n\nWaiting for connections...\n");
 		sock_connect = accept(sock_listen, (struct sockaddr*)&remote, (socklen_t *)&remote_len);
 		if(sock_connect<0){
@@ -229,7 +248,7 @@ int main(int argc, char **argv){
 				exit(1);
 			}
 
-			//check credentials
+			//check credentials - username amd password
 			while(!feof(fp)){
 				fgets(dfs_file_content, 100, fp);
 				if(strstr(dfs_file_content, recv_username) != NULL) {
@@ -280,7 +299,6 @@ int main(int argc, char **argv){
    							if(strstr(line, recv_username)!=NULL){
    								//printf("Line is :%s\n", line);
    								strcat(list_buf_contents_actual, line);
-   								//strncpy(list_buf_contents_actual, line, strlen(line));
    								strcat(list_buf_contents_actual, "\n");
    							}
    							line  = strtok(NULL, "\n");
@@ -338,6 +356,7 @@ int main(int argc, char **argv){
 						char *recv_usr = recv_username;
 						recv_usr[strlen(recv_usr)] = '\0';
 
+						//based on the value of x received, interpret data differently
 						if(x == 0){
 							//file 1
 							//receiving length of file
@@ -363,7 +382,6 @@ int main(int argc, char **argv){
 							while(loop_cnt<dataLen){
     							part_file_content[loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
     							++loop_cnt;
-    							//flag=1;
 	   						}
 	   						#endif
 
@@ -629,8 +647,8 @@ int main(int argc, char **argv){
 							fclose(fp1);
 						}
 
-						break;
-	
+						break;	
+				//GET option
 				case 2:
 						printf("GET option.\n");
 						printf("x is %d\n", x);
@@ -743,6 +761,7 @@ int main(int argc, char **argv){
 		}//end of fork call
 	}//end of while loop
 
+	//closing the listening socket
 	close(sock_listen);
 	sock_listen = -1;
 
