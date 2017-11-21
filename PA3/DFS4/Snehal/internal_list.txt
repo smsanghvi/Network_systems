@@ -1,7 +1,0 @@
-.
-./.file.txt.3
-./.foo.txt.0
-./.foo1.txt.3
-./.foo1.txt.0
-./.foo.txt.1
-./.file.txt.2

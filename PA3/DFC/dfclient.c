@@ -21,6 +21,9 @@
 #define BUFFER_SIZE 1000000
 #define NO_OF_CONNECTIONS 4
 
+//#define ENCRYPTION 1
+
+int flag = -1;
 static char folder[NO_OF_CONNECTIONS][10];
 static char ip[NO_OF_CONNECTIONS][20];
 int port[NO_OF_CONNECTIONS];
@@ -28,10 +31,14 @@ char username[20];
 char username_copy[20];
 int username_length;
 char password[20], options[20];
+char key[20];
+int keyLen;
+int dataLen;
 char combined_file[BUFFER_SIZE];
 char combined_filename[20];
 int combined_length, options_length = 0;
 char *str;
+static int active = NO_OF_CONNECTIONS;
 int16_t menu_id = -1;	
 int count = 0, x = 0;;
 int sockfd[NO_OF_CONNECTIONS] = {-1};
@@ -131,11 +138,16 @@ int file_length(FILE *fp)
 //creating the 4 sockets, populating them and connecting to server
 int create_sockets(){
 	int i;
+	active = NO_OF_CONNECTIONS;
  	for(i = 0; i < NO_OF_CONNECTIONS; i++){
  		//making socket function calls
+ 		sockfd[i] = -1;
  		if ((sockfd[i] = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
   			perror("Problem in creating the socket");
-  			return 1;
+  			active --;
+  			flag = i;
+  			//return 1;
+  			continue;
  		}	
 
  		//populating the structures
@@ -147,7 +159,10 @@ int create_sockets(){
  		//Connection of the client to the socket 
  		if (connect(sockfd[i], (struct sockaddr *) &servaddr[i], sizeof(servaddr[i])) == -1) {
   			perror("Problem in connecting to the server");
-  			return 1;
+  			//return 1;
+  			flag = i;
+  			close(sockfd[i]);
+  			continue;
  		}
  	}
 
@@ -167,6 +182,7 @@ int main(int argc, char **argv){
  	int length_of_file;
  	int flag_authenticate = 0;
  	int folder_length;
+ 	struct timeval timeout;
 
 
 	//basic check for the arguments
@@ -191,6 +207,11 @@ int main(int argc, char **argv){
 		length_authenticate = strlen(concat_authenticate);
 		//printf("Concat is %s\n", concat_authenticate);
 		//printf("Strlen is %d\n", length_authenticate);
+
+		strcpy(key, password);
+		printf("key is %s\n", key);
+		keyLen = strlen(key);
+		printf("keyLen is %d\n", keyLen);
 
  		//creating multiple sockets
  		if(create_sockets()){
@@ -223,43 +244,73 @@ int main(int argc, char **argv){
 
 		//sending out the options
 		for(i=0; i< NO_OF_CONNECTIONS; i++){
+			if(i==flag)
+				continue;
 			options_length = strlen(options);
 			send(sockfd[i], &options_length, sizeof(options_length), 0);
 			send(sockfd[i], options, options_length, 0);
 		}				
 
 		//sending out user credentials
-		for(i=0; i<NO_OF_CONNECTIONS; i++){					
+		for(i=0; i<NO_OF_CONNECTIONS; i++){		
+			if(i==flag)
+				continue;			
 			send(sockfd[i], &length_authenticate, sizeof(int), 0);
 		}
 
-		for(i=0; i<NO_OF_CONNECTIONS; i++){					
+		for(i=0; i<NO_OF_CONNECTIONS; i++){			
+			if(i==flag)
+				continue;		
 			send(sockfd[i], concat_authenticate, length_authenticate, 0);
 		}
 
+		int temp_count = NO_OF_CONNECTIONS;
+
 		//waiting for correct credentials reply from servers
-		for(i=0; i<NO_OF_CONNECTIONS; i++){					
+		for(i=0; i<NO_OF_CONNECTIONS; i++){			
+			if(i==flag)
+				continue;		
 			if((bytes_read[i] = recv(sockfd[i], &resp[i], sizeof(int), 0)) > 0){}	
 			if(resp[i] == 1){
-				printf("Authentication successful with server %d\n", i);
+				//printf("Authentication successful with server %d\n", i);
 				flag_authenticate = 0;
 			}
 			else{
-				printf("Invalid Username/Password. Please try again.\n");
+				//printf("Invalid Username/Password. Please try again.\n");
 				flag_authenticate = 1;
-				break;
+				temp_count--;
+				//break;
 			}
 		}
 
 
-		if(flag_authenticate)
-			continue;
+		if(temp_count == active){
+			printf("Authentication successful with servers\n");
+		}
+		else{
+			printf("Invalid Username/Password. Please try again.\n");
+			break;
+		}
 
 		switch(menu_id){
 			//LIST
 			case 0:
 					printf("\n");
+
+					timeout.tv_sec = 0;
+					timeout.tv_usec = 1000000;	//setting a timeout of 1s
+
+					//setting a timeout to receive ACK from server to 600ms
+					/*for(i=0; i<NO_OF_CONNECTIONS;i++){
+						if(i==flag)
+							continue;
+						setsockopt(sockfd[i], SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+					}	*/
+					
+
 					for(i=0; i<NO_OF_CONNECTIONS;i++){
+						if(i==flag)
+							continue;
 						folder_length = strlen(folder[i]);				
 						//sending the length of the folder
 						send(sockfd[i], &folder_length, sizeof(int), 0);
@@ -268,6 +319,8 @@ int main(int argc, char **argv){
 					}
 
 					for(i=0; i<NO_OF_CONNECTIONS; i++){
+						if(i==flag)
+							continue;
 						memset(recv_list_buffer[i], 0, sizeof(recv_list_buffer[i]));
 						recv(sockfd[i], &recv_list_size[i], sizeof(int), 0);
 						recv(sockfd[i], recv_list_buffer[i], recv_list_size[i], 0);
@@ -476,6 +529,15 @@ int main(int argc, char **argv){
 					}
 
 					printf("\n\n");
+					timeout.tv_sec = 0;
+					timeout.tv_usec = 0;	//setting a timeout of 0s
+
+					/*for(i=0; i<NO_OF_CONNECTIONS;i++){
+						if(i==flag)
+							continue;
+						setsockopt(sockfd[i], SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+					}*/	
+
 
 					break;
 			//PUT
@@ -503,8 +565,20 @@ int main(int argc, char **argv){
 
 					int sum = 0;
 
+					timeout.tv_sec = 0;
+					timeout.tv_usec = 1000000;	//setting a timeout of 1s
+
+					//setting a timeout to receive ACK from server to 600ms
+					/*for(i=0; i<NO_OF_CONNECTIONS;i++){
+						if(i==flag)
+							continue;
+						setsockopt(sockfd[i], SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+					}*/	
+
 					//setting the lengths of part files
 					for(i = 0; i < NO_OF_CONNECTIONS; i++){
+						if(i==flag)
+							continue;
 						length_part_file[i] = length_of_file/NO_OF_CONNECTIONS;
 						if(i < (NO_OF_CONNECTIONS)){
 							sum += length_part_file[i];
@@ -521,8 +595,12 @@ int main(int argc, char **argv){
 					}
 					fclose(fp);
 
+					int loop_cnt = 0;
+
 					for(i = 0; i < NO_OF_CONNECTIONS; i++){
 						//sending out the value of x
+						if(i==flag)
+							continue;					
 						send(sockfd[i], &x, sizeof(int), 0);
 						folder_length = strlen(folder[i]);
 						//length_part_file[i] = fread(buffer_part[i], sizeof(char), length_part_file[i], fp);
@@ -548,11 +626,35 @@ int main(int argc, char **argv){
 							//sending the part file
 							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
 							strcpy(buffer_part[i], storage_buf[i]);
+
+							#ifdef ENCRYPTION
+							dataLen = length_part_file[i];
+							loop_cnt = 0;
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							buffer_part[i][loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							send(sockfd[i], buffer_part[i], length_part_file[i] + 1, 0);
 
 							//sending the part file
 							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
 							strcpy(buffer_part[i], storage_buf[(i+1)%4]);
+
+							#ifdef ENCRYPTION							
+							dataLen = length_part_file[(i+1)%4];
+							loop_cnt = 0;
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							buffer_part[i][loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							send(sockfd[i], buffer_part[i], length_part_file[(i+1)%4] + 1, 0);	
 										
 						}
@@ -573,11 +675,38 @@ int main(int argc, char **argv){
 							//sending the part file
 							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
 							strcpy(buffer_part[i], storage_buf[(i+3)%4]);
+
+
+							#ifdef ENCRYPTION
+							dataLen = length_part_file[(i+3)%4];
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							buffer_part[i][loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							send(sockfd[i], buffer_part[i], length_part_file[(i+3)%4] + 1, 0);
 
 							//sending the part file
 							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
 							strcpy(buffer_part[i], storage_buf[i]);
+
+							#ifdef ENCRYPTION
+							dataLen = length_part_file[i];
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							buffer_part[i][loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							send(sockfd[i], buffer_part[i], length_part_file[i] + 1, 0);	
 										
 						}
@@ -598,11 +727,37 @@ int main(int argc, char **argv){
 							//sending the part file
 							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
 							strcpy(buffer_part[i], storage_buf[(i+2)%4]);
+
+							#ifdef ENCRYPTION
+							dataLen = length_part_file[(i+2)%4];
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							buffer_part[i][loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							send(sockfd[i], buffer_part[i], length_part_file[(i+2)%4] + 1, 0);
 
 							//sending the part file
 							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
 							strcpy(buffer_part[i], storage_buf[(i+3)%4]);
+
+							#ifdef ENCRYPTION
+							dataLen = length_part_file[(i+3)%4];
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							buffer_part[i][loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							send(sockfd[i], buffer_part[i], length_part_file[(i+3)%4] + 1, 0);	
 										
 						}
@@ -623,15 +778,50 @@ int main(int argc, char **argv){
 							//sending the part file
 							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
 							strcpy(buffer_part[i], storage_buf[(i+1)%4]);
+
+							#ifdef ENCRYPTION							
+							dataLen = length_part_file[(i+1)%4];
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							buffer_part[i][loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							send(sockfd[i], buffer_part[i], length_part_file[(i+1)%4] + 1, 0);
 
 							//sending the part file
 							memset(buffer_part[i], 0, sizeof(buffer_part[i]));
 							strcpy(buffer_part[i], storage_buf[(i+2)%4]);
+
+							#ifdef ENCRYPTION
+							dataLen = length_part_file[(i+2)%4];
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							buffer_part[i][loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							send(sockfd[i], buffer_part[i], length_part_file[(i+2)%4] + 1, 0);	
 										
 						}
-					
+
+						timeout.tv_sec = 0;
+						timeout.tv_usec = 0;	//setting a timeout of 0s
+
+						//setting a timeout to receive ACK from server to 600ms
+						/*for(i=0; i<NO_OF_CONNECTIONS;i++){
+
+							setsockopt(sockfd[i], SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+						}*/
+
 					}
 
 					break;
@@ -643,7 +833,20 @@ int main(int argc, char **argv){
 					int rec_file_length[NO_OF_CONNECTIONS];
 					char rec_file_content[NO_OF_CONNECTIONS][BUFFER_SIZE];
 					char temp_arr[BUFFER_SIZE];
+
+					timeout.tv_sec = 0;
+					timeout.tv_usec = 1000000;	//setting a timeout of 1s
+
+					/*
+					//setting a timeout to receive ACK from server to 600ms
 					for(i=0; i<NO_OF_CONNECTIONS;i++){
+						setsockopt(sockfd[i], SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+					}*/
+
+
+					for(i=0; i<NO_OF_CONNECTIONS;i++){
+						if(i==flag)
+							continue;
 						folder_length = strlen(folder[i]);				
 						//sending the length of the folder
 						send(sockfd[i], &folder_length, sizeof(int), 0);
@@ -653,11 +856,15 @@ int main(int argc, char **argv){
 
 					//receiving the number of unique files from each server
 					for(i=0; i<NO_OF_CONNECTIONS;i++){
+						if(i==flag)
+							continue;						
 						recv(sockfd[i], &recv_file_count[i], sizeof(int), 0);
 						printf("File count for server %d is %d\n", i, recv_file_count[i] );
 					}
 
 					for(i=0; i<NO_OF_CONNECTIONS;i++){
+						if(i==flag)
+							continue;					
 						//receive the length of filename
 						memset(rec_filename[i], 0, sizeof(rec_filename[i]));
 						memset(rec_file_content[i], 0, sizeof(rec_file_content[i]));
@@ -828,6 +1035,16 @@ int main(int argc, char **argv){
 					sprintf(clean_up_arr, "rm %s %s %s %s", rec_name0, rec_name1, rec_name2, rec_name3);						
 					system(clean_up_arr);
 
+					timeout.tv_sec = 0;
+					timeout.tv_usec = 0;	//setting a timeout of 0s
+
+					/*for(i=0; i<NO_OF_CONNECTIONS;i++){
+						if(i==flag)
+							continue;						
+						setsockopt(sockfd[i], SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+					}	*/
+
+
 					break;
 			//default
 			default:
@@ -838,6 +1055,8 @@ int main(int argc, char **argv){
 		//closing the socket
 		int y = 0;
 		for(y=0; y< NO_OF_CONNECTIONS; y++){
+			if(y==flag)
+				continue;			
 			close(sockfd[y]);
 			sockfd[y] = -1;
 		}

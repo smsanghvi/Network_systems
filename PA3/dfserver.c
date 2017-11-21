@@ -22,6 +22,8 @@
 #define MAXSIZE 1000000
 #define BACKLOG 10
 
+//#define ENCRYPTION 1
+
 struct sockaddr_in local, remote;
 int sock_listen = -1;   //socket descriptor
 int sock_connect = -1;  //socket descriptor
@@ -33,7 +35,10 @@ char options[20];
 int options_length;
 int menu_id = -1;
 FILE *fp, *fp1;
-
+char key[20];
+int keyLen;
+int dataLen;
+int loop_cnt;
 
 //return a folder after creating it - if it doesnt exist
 char *return_directory(char *p, char *username){
@@ -144,25 +149,17 @@ int main(int argc, char **argv){
  
 	remote_len = sizeof remote;
 
-	// //listening for new connections
-	// if(listen(sock_listen, BACKLOG)){
-	// 	printf("Unable to listen for connections.\n");
-	// }
-	// else{
-	// 	printf("Listening for incoming connections...");
-	// }
+	 //listening for new connections
+	 if(listen(sock_listen, BACKLOG)){
+	 	printf("Unable to listen for connections.\n");
+	 }
+	 else{
+	 	printf("Listening for incoming connections...");
+	 }
 
 	printf("\n");
 
 	while(1){
-
-		//listening for new connections
-		if(listen(sock_listen, BACKLOG)){
-			printf("Unable to listen for connections.\n");
-		}
-		else{
-			printf("Listening for incoming connections...");
-		}
 		
 		//accept a connection
 		setsockopt(sock_listen, SOL_SOCKET, SO_REUSEADDR, (const void *)&temp , sizeof(int)); 
@@ -219,6 +216,12 @@ int main(int argc, char **argv){
 			memmove(recv_username, recv_username + 1, strlen(recv_username));
 			temp_str = strtok(NULL, " \n");	
 			strcpy(recv_password, temp_str);	
+
+			strcpy(key, recv_password);
+			printf("Key is %s\n", key);
+
+			keyLen = strlen(key);
+			printf("Keylength is %d\n", keyLen);
 
 
 			if((fp = fopen("dfs.conf", "r")) == NULL){
@@ -351,6 +354,19 @@ int main(int argc, char **argv){
 							printf("Filename received is %s\n", filename);
 							memset(part_file_content, 0, sizeof(part_file_content));
 							recv(sock_connect, part_file_content, recv_filelength, 0);
+							
+							#ifdef ENCRYPTION							
+							dataLen = recv_filelength;
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							part_file_content[loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							//printf("Part file name content is %s\n", part_file_content);			
 							sprintf(part_file_name, ".%s.%d", filename, unique_no%4);
 							printf("part file name is %s\n", part_file_name);
@@ -367,6 +383,19 @@ int main(int argc, char **argv){
 				
 							memset(part_file_content, 0, sizeof(part_file_content));
 							recv(sock_connect, part_file_content, recv_filelength1, 0);
+							
+							#ifdef ENCRYPTION							
+							dataLen = recv_filelength1;
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							part_file_content[loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							//printf("Part file name content is %s\n", part_file_content);			
 							sprintf(part_file_name, ".%s.%d", filename, (unique_no+1)%4);
 							printf("part file name is %s\n", part_file_name);
@@ -396,6 +425,19 @@ int main(int argc, char **argv){
 							printf("Filename received is %s\n", filename);
 							memset(part_file_content, 0, sizeof(part_file_content));
 							recv(sock_connect, part_file_content, recv_filelength, 0);
+
+							#ifdef ENCRYPTION
+							dataLen = recv_filelength;
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							part_file_content[loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							//printf("Part file name content is %s\n", part_file_content);			
 							sprintf(part_file_name, ".%s.%d", filename, (unique_no+3)%4);
 							printf("part file name is %s\n", part_file_name);
@@ -413,6 +455,19 @@ int main(int argc, char **argv){
 				
 							memset(part_file_content, 0, sizeof(part_file_content));
 							recv(sock_connect, part_file_content, recv_filelength1, 0);
+
+							#ifdef ENCRYPTION
+							dataLen = recv_filelength1;
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							part_file_content[loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							//printf("Part file name content is %s\n", part_file_content);			
 							sprintf(part_file_name, ".%s.%d", filename, unique_no%4);
 							printf("part file name is %s\n", part_file_name);
@@ -444,6 +499,19 @@ int main(int argc, char **argv){
 							printf("Filename received is %s\n", filename);
 							memset(part_file_content, 0, sizeof(part_file_content));
 							recv(sock_connect, part_file_content, recv_filelength, 0);
+
+							#ifdef ENCRYPTION
+							dataLen = recv_filelength;
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							part_file_content[loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							//printf("Part file name content is %s\n", part_file_content);			
 							sprintf(part_file_name, ".%s.%d", filename, (unique_no+2)%4);
 							printf("part file name is %s\n", part_file_name);
@@ -461,6 +529,19 @@ int main(int argc, char **argv){
 				
 							memset(part_file_content, 0, sizeof(part_file_content));
 							recv(sock_connect, part_file_content, recv_filelength1, 0);
+
+							#ifdef ENCRYPTION
+							dataLen = recv_filelength1;
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							part_file_content[loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							//printf("Part file name content is %s\n", part_file_content);			
 							sprintf(part_file_name, ".%s.%d", filename, (unique_no+3)%4);
 							printf("part file name is %s\n", part_file_name);
@@ -491,6 +572,19 @@ int main(int argc, char **argv){
 							printf("Filename received is %s\n", filename);
 							memset(part_file_content, 0, sizeof(part_file_content));
 							recv(sock_connect, part_file_content, recv_filelength, 0);
+
+							#ifdef ENCRYPTION
+							dataLen = recv_filelength;
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							part_file_content[loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							//printf("Part file name content is %s\n", part_file_content);			
 							sprintf(part_file_name, ".%s.%d", filename, (unique_no+1)%4);
 							printf("part file name is %s\n", part_file_name);
@@ -508,6 +602,19 @@ int main(int argc, char **argv){
 				
 							memset(part_file_content, 0, sizeof(part_file_content));
 							recv(sock_connect, part_file_content, recv_filelength1, 0);
+
+							#ifdef ENCRYPTION
+							dataLen = recv_filelength1;
+							loop_cnt = 0;
+							
+							//xor encryption using password
+							while(loop_cnt<dataLen){
+    							part_file_content[loop_cnt] ^= key[loop_cnt % (keyLen-1)]; 
+    							++loop_cnt;
+    							//flag=1;
+	   						}
+	   						#endif
+
 							//printf("Part file name content is %s\n", part_file_content);			
 							sprintf(part_file_name, ".%s.%d", filename, (unique_no+2)%4);
 							printf("part file name is %s\n", part_file_name);
@@ -632,6 +739,7 @@ int main(int argc, char **argv){
 			printf("At the end.\n");
 			close(sock_connect);
 			sock_connect = -1;
+			exit(0);
 		}//end of fork call
 	}//end of while loop
 
