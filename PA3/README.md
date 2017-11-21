@@ -1,5 +1,7 @@
 This project is an implementation of a distributed file system that can allow the client to store and retrieve files on multiple servers. Each file is divided into pieces and stored on different servers which ensures that the files can be retrieved even if one of the servers is down.
 
+Link to Github project: https://github.com/smsanghvi/Network_systems/tree/master/PA3
+
 There is a client that uploads and downloads files onto and from 4 servers : DFS1, DFS2, DFS3 and DFS4. In my case in order to test the concept, I ran the 4 servers on the same machine with 4 different port numbers. 
 
 The following features have been implemented:
