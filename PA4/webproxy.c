@@ -131,7 +131,8 @@ int main (int argc, char * argv[] ){
 						strcpy(rqst_host, rqst_url);
 						if(strstr(rqst_host, "/")!=NULL){
 							rqst_url = strtok(rqst_url, "/");
-							strcpy(rqst_host, rqst_url);
+							strcpy(rqst_host, "http://");
+							strcat(rqst_host, rqst_url);
 							rqst_url = strtok(NULL, ": ");
 							strcpy(rqst_path, "/");
 							strcat(rqst_path, rqst_url);
@@ -145,12 +146,14 @@ int main (int argc, char * argv[] ){
 						strcpy(rqst_host, rqst_url);
 						if(strstr(rqst_host, "/")!=NULL){
 							rqst_url = strtok(rqst_url, "/");
-							strcpy(rqst_host, rqst_url);
+							strcpy(rqst_host, "https://");
+							strcat(rqst_host, rqst_url);
 							rqst_url = strtok(NULL, ": ");
+							strcpy(rqst_path, "/");
 							strcpy(rqst_path, rqst_url);
 						}
 						else{
-							strcpy(rqst_path, "");
+							strcpy(rqst_path, "/");
 						}
 					}
 					else{
@@ -197,8 +200,7 @@ int main (int argc, char * argv[] ){
 	 			connect(sock_ptos, (struct sockaddr *) &local_proxy, sizeof(local_proxy));
 	 		
 	 			//sending out the HTTP request message
-	 			//sprintf(http_request,"%s %s %s\r\nHost: %s:80\r\nConnection: Close\r\n\r\n", rqst_method, rqst_path, rqst_version, rqst_host);
-	 			sprintf(http_request,"GET %s\r\nHost: %s\r\nConnection: keep-alive\r\n\r\n", rqst_path, rqst_host);
+	 			sprintf(http_request,"%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Close\r\n\r\n", rqst_method, rqst_path, rqst_host);
 	 			nbytes_temp = send(sock_ptos, http_request, strlen(http_request), 0);
 
 		 		printf("Sent http request of %d bytes.\n", nbytes_temp);
