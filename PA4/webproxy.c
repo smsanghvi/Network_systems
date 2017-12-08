@@ -30,6 +30,7 @@
 #undef SMALL
 
 extern int h_errno;
+int timeout;
 
 //obtains file length in bytes
 int file_length(FILE *fp)
@@ -58,7 +59,7 @@ int main (int argc, char * argv[] ){
 	unsigned char temp_str[100];
 	char cache[100];
 	char *result;
-	char cache_filename[100];
+	char cache_filename[100], delete_buff[100];
 	pid_t pid;
 	char rqst_host[100], rqst_path[100], *rqst_port_str;
 	int nbytes_temp, nbytes_recv, nbytes_send, rqst_port = 80, pos=0;
@@ -68,17 +69,21 @@ int main (int argc, char * argv[] ){
 	int nbytes_total = 0, filelen;
 	MD5_CTX md;
 	FILE *fp;
+	int fd, time_diff = 0;
 	int doctype_flag=0;
 	int no_bytes_write=0, no_bytes_read=0;
+	struct stat stat_struct;
 
 	//parse command line arguments
-	if(argc != 2){
-		printf ("USAGE: ./webproxy <PORT>\n");
+	if(argc != 3){
+		printf ("USAGE: ./webproxy <PORT> <timeout>\n");
 		exit(1);
 	}
 
 	port_int = atoi(argv[1]);
-	
+	timeout = atoi(argv[2]);
+
+
 	//checking if port no. is greater than 1024
 	if(port_int < 1024){
 		printf("Enter port no. greater than 1024.\n");
@@ -155,140 +160,161 @@ int main (int argc, char * argv[] ){
   				rqst_version = strtok (NULL, " \n");
   				printf("Request version: %s\n", rqst_version);
 
-  				//only process GET requests
-  				if(!strncmp(rqst_method, "GET", 3)){
-  					//computing md5sum
-			  		MD5_Init (&md);
-				  	MD5_Update (&md,rqst_url_copy, strlen(rqst_url_copy));
-				  	MD5_Final (temp_str, &md);
+  				//computing md5sum
+			  	MD5_Init (&md);
+				MD5_Update (&md,rqst_url_copy, strlen(rqst_url_copy));
+				MD5_Final (temp_str, &md);
 
-				   	for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) 
-						sprintf(&(cache[2*i]), "%02x", temp_str[i]);
-					//completed computation
+				for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) 
+					sprintf(&(cache[2*i]), "%02x", temp_str[i]);
 
-					strcpy(cache_filename,  cache);
-					strcat(cache_filename, ".html");
-					printf("Cache filename is %s\n", cache_filename);
+				strcpy(cache_filename,  cache);
+				strcat(cache_filename, ".html");
+				//printf("Cache filename is %s\n", cache_filename);
 
-
+				//check if the cache file already exists
+				if( access( cache_filename, F_OK ) != -1 ) {
+					printf("Cache file already exists.\n");
+					//check timeout
+					fd = open(cache_filename, O_RDONLY);
+					if(fd!=-1){
+						fstat(fd, &stat_struct);
+						close(fd);
+					} 
+					printf("Last modification time is %ld\n", (stat_struct.st_mtime));
 					current_time = time(NULL);
-					printf("Seconds passed since epoch  is %ld\n", current_time);
+					printf("Current time is %ld\n", current_time);
+					time_diff = current_time - (stat_struct.st_mtime);
+					printf("Time diff is %d seconds\n", time_diff);
 
-
-					if(strstr(rqst_url_copy, "http://")!=NULL){
-						rqst_url += 7;
-						strcpy(rqst_host, rqst_url);
-						if(strstr(rqst_host, "/")!=NULL){
-							rqst_url = strtok(rqst_url, "/");
-							strcpy(rqst_host, "http://");
-							strcat(rqst_host, rqst_url);
-							rqst_url = strtok(NULL, ": ");
-							strcpy(rqst_path, "/");
-							strcat(rqst_path, rqst_url);
-						}
-						else{
-							strcpy(rqst_path, "/");
-						}
-					}
-					else if(strstr(rqst_url_copy, "https://")!=NULL){
-						rqst_url += 8;
-						strcpy(rqst_host, rqst_url);
-						if(strstr(rqst_host, "/")!=NULL){
-							rqst_url = strtok(rqst_url, "/");
-							strcpy(rqst_host, "https://");
-							strcat(rqst_host, rqst_url);
-							rqst_url = strtok(NULL, ": ");
-							strcpy(rqst_path, "/");
-							strcpy(rqst_path, rqst_url);
-						}
-						else{
-							strcpy(rqst_path, "/");
-						}
+					if(time_diff > timeout){
+						printf("YOU EXCEEDED TIMEOUT!!!\n");
+						//deleting the cache file
+						sprintf(delete_buff, "rm %s", cache_filename);
+						system(delete_buff);
+						printf("Deleted the file.\n");
 					}
 					else{
-						if(strstr(rqst_url_copy, ":")==NULL){
+						printf("Serving you the cached file.\n");
+					}
+				}
+				else{
+					printf("\nCreating a cache file.\n");
+
+	  				//only process GET requests
+  					if(!strncmp(rqst_method, "GET", 3)){
+						if(strstr(rqst_url_copy, "http://")!=NULL){
+							rqst_url += 7;
 							strcpy(rqst_host, rqst_url);
-							rqst_port = 80;
+							if(strstr(rqst_host, "/")!=NULL){
+								rqst_url = strtok(rqst_url, "/");
+								strcpy(rqst_host, "http://");
+								strcat(rqst_host, rqst_url);
+								rqst_url = strtok(NULL, ": ");
+								strcpy(rqst_path, "/");
+								strcat(rqst_path, rqst_url);
+							}
+							else{
+								strcpy(rqst_path, "/");
+							}
+						}
+						else if(strstr(rqst_url_copy, "https://")!=NULL){
+							rqst_url += 8;
+							strcpy(rqst_host, rqst_url);
+							if(strstr(rqst_host, "/")!=NULL){
+								rqst_url = strtok(rqst_url, "/");
+								strcpy(rqst_host, "https://");
+								strcat(rqst_host, rqst_url);
+								rqst_url = strtok(NULL, ": ");
+								strcpy(rqst_path, "/");
+								strcpy(rqst_path, rqst_url);
+							}
+							else{
+								strcpy(rqst_path, "/");
+							}
 						}
 						else{
-							rqst_url = strtok(rqst_url, ":");
-							strcpy(rqst_host, rqst_url);
-							rqst_port_str = strtok(NULL, " ");
-							rqst_port = atoi(rqst_port_str);
-						}					
-					}
+							if(strstr(rqst_url_copy, ":")==NULL){
+								strcpy(rqst_host, rqst_url);
+								rqst_port = 80;
+							}
+							else{
+								rqst_url = strtok(rqst_url, ":");
+								strcpy(rqst_host, rqst_url);
+								rqst_port_str = strtok(NULL, " ");
+								rqst_port = atoi(rqst_port_str);
+							}					
+						}
 
-					printf("Rqst host is %s\n", rqst_host);
-					printf("Rqst path is %s\n", rqst_path);
+						//printf("Rqst host is %s\n", rqst_host);
+						//printf("Rqst path is %s\n", rqst_path);
 
 
-					if ((he = gethostbyname(rqst_host)) == NULL) { 
-    					herror("gethostbyname");
-    					return 1;
-					}
+						if ((he = gethostbyname(rqst_host)) == NULL) { 
+    						herror("gethostbyname");
+    						return 1;
+						}
 
 
-					addr_list = (struct in_addr **)he->h_addr_list;
+						addr_list = (struct in_addr **)he->h_addr_list;
 				
-					if(addr_list[0] == NULL){
-						printf("Invalid ip addresses.\n");
-						return 1;
-					}
-					//printf("Hostname is : %s\n", he->h_name);
+						if(addr_list[0] == NULL){
+							printf("Invalid ip addresses.\n");
+							return 1;
+						}
+						//printf("Hostname is : %s\n", he->h_name);
 
 
-					if((sock_ptos = socket(AF_INET, SOCK_STREAM, 0))== -1)
-						perror("Socket not setup on proxy.\n");
+						if((sock_ptos = socket(AF_INET, SOCK_STREAM, 0))== -1)
+							perror("Socket not setup on proxy.\n");
 
-					// building up the structure data
-					memset(&local_proxy, 0, sizeof local_proxy);
-					local_proxy.sin_family = AF_INET; //only defining for IPv4 addresses
-					local_proxy.sin_addr.s_addr = inet_addr(inet_ntoa(*addr_list[0]));  //setting address field
-					local_proxy.sin_port = htons(80); 	//setting port no. 
+						// building up the structure data
+						memset(&local_proxy, 0, sizeof local_proxy);
+						local_proxy.sin_family = AF_INET; //only defining for IPv4 addresses
+						local_proxy.sin_addr.s_addr = inet_addr(inet_ntoa(*addr_list[0]));  //setting address field
+						local_proxy.sin_port = htons(80); 	//setting port no. 
 
-	 				connect(sock_ptos, (struct sockaddr *) &local_proxy, sizeof(local_proxy));
-	 		
-	 				//sending out the HTTP request message
-	 				sprintf(http_request,"%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Close\r\n\r\n", rqst_method, rqst_path, rqst_host);
-	 				nbytes_temp = send(sock_ptos, http_request, strlen(http_request), 0);
+		 				connect(sock_ptos, (struct sockaddr *) &local_proxy, sizeof(local_proxy));
+	 			
+	 					//sending out the HTTP request message
+		 				sprintf(http_request,"%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Close\r\n\r\n", rqst_method, rqst_path, rqst_host);
+		 				nbytes_temp = send(sock_ptos, http_request, strlen(http_request), 0);
 
-			 		printf("Sent http request of %d bytes.\n", nbytes_temp);
-			 		printf("HTTP request message: %s\n", http_request);
+				 		//printf("Sent http request of %d bytes.\n", nbytes_temp);
+				 		//printf("HTTP request message: %s\n", http_request);
 
-		 			fp = fopen(cache_filename, "a");
-		 			printf("Opened file.\n");
+		 				fp = fopen(cache_filename, "a");
 
-		 			do{
-		 				memset(server_resp, 0, sizeof(server_resp));
-		 				memset(server_resp_head, 0, sizeof(server_resp_head));
-		 				memset(server_resp_body, 0, sizeof(server_resp_body));
-		 				nbytes_recv = recv(sock_ptos, server_resp, sizeof(server_resp), 0);
-		 				if((result = strstr(server_resp, "<!DOCTYPE"))!=NULL){
-		 					doctype_flag=1;
-		 					server_resp_head_ind = result - server_resp;
-			 				strncpy(server_resp_head, server_resp, server_resp_head_ind);
-			 				printf("server response head is %s\n", server_resp_head);	
-			 				send(sock_connect, server_resp_head, server_resp_head_ind, 0);	 	
-			 				//server_resp += server_resp_head_ind;
-			 				strncpy(server_resp_body, server_resp+server_resp_head_ind, nbytes_recv - server_resp_head_ind);	
-			 				no_bytes_write = fwrite(server_resp_body, sizeof(char), nbytes_recv - server_resp_head_ind, fp);	
-							if(!nbytes_recv<=0){
-								send(sock_connect, server_resp_body, no_bytes_write, 0);
-							}		 				
-		 				}
-		 				else if(doctype_flag==1){
-							no_bytes_write = fwrite(server_resp, sizeof(char), nbytes_recv, fp);		 				
-		 					if(!nbytes_recv<=0){
-								send(sock_connect, server_resp, no_bytes_write, 0);
-							}	
-		 				}
-		 			}while(nbytes_recv > 0);
-		 			doctype_flag=0;
+		 				do{
+			 				memset(server_resp, 0, sizeof(server_resp));
+			 				memset(server_resp_head, 0, sizeof(server_resp_head));
+		 					memset(server_resp_body, 0, sizeof(server_resp_body));
+		 					nbytes_recv = recv(sock_ptos, server_resp, sizeof(server_resp), 0);
+			 				if((result = strstr(server_resp, "<!DOCTYPE"))!=NULL){
+			 					doctype_flag=1;
+		 						server_resp_head_ind = result - server_resp;
+			 					strncpy(server_resp_head, server_resp, server_resp_head_ind);
+			 					send(sock_connect, server_resp_head, server_resp_head_ind, 0);	 	
+			 					//server_resp += server_resp_head_ind;
+			 					strncpy(server_resp_body, server_resp+server_resp_head_ind, nbytes_recv - server_resp_head_ind);	
+				 				no_bytes_write = fwrite(server_resp_body, sizeof(char), nbytes_recv - server_resp_head_ind, fp);	
+								if(!nbytes_recv<=0){
+									send(sock_connect, server_resp_body, no_bytes_write, 0);
+								}		 				
+		 					}
+		 					else if(doctype_flag==1){
+								no_bytes_write = fwrite(server_resp, sizeof(char), nbytes_recv, fp);		 				
+		 						if(!nbytes_recv<=0){
+									send(sock_connect, server_resp, no_bytes_write, 0);
+								}	
+			 				}
+		 				}while(nbytes_recv > 0);
+		 				doctype_flag=0;
 
-		 			fclose(fp);	 	
+		 				fclose(fp);	 	
+	 				}//end of GET block
 
-	 			}//end of GET block
-
+	 			}//end of else block
 	 			memset(http_request, 0, sizeof(http_request));
 				memset(rqst_host, 0, sizeof(rqst_host));
 				memset(rqst_path, 0, sizeof(rqst_path));
@@ -299,6 +325,8 @@ int main (int argc, char * argv[] ){
 
 				shutdown(sock_ptos, SHUT_RDWR);
 				close(sock_ptos);
+
+				printf("------------------------\n");
 
 			}	
 
