@@ -2,7 +2,7 @@
 
 #calling the gcc compiler to build the code
 all: webproxy.c
-	gcc webproxy.c -o webproxy
+	gcc webproxy.c -lcrypto -lssl -o webproxy
 
 #clean up the executable created
 clean:
