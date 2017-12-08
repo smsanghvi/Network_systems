@@ -258,18 +258,6 @@ int main (int argc, char * argv[] ){
 		 			fp = fopen(cache_filename, "a");
 		 			printf("Opened file.\n");
 
-#ifdef SMALL
-		 		//do{
-		 			memset(server_resp, 0, sizeof(server_resp));
-		 			nbytes_recv = recv(sock_ptos, server_resp, sizeof(server_resp), 0);	
-					no_bytes_write = fwrite(server_resp, sizeof(char), nbytes_recv, fp);		 				
-		 			if(!nbytes_recv<=0){
-						send(sock_connect, server_resp, no_bytes_write, 0);
-					}		 		
-		 		//}while(nbytes_recv > 0);
-#endif
-
-#ifdef LARGE
 		 			do{
 		 				memset(server_resp, 0, sizeof(server_resp));
 		 				memset(server_resp_head, 0, sizeof(server_resp_head));
@@ -296,10 +284,9 @@ int main (int argc, char * argv[] ){
 		 				}
 		 			}while(nbytes_recv > 0);
 		 			doctype_flag=0;
-#endif
 
 		 			fclose(fp);	 	
-		 					
+
 	 			}//end of GET block
 
 	 			memset(http_request, 0, sizeof(http_request));
