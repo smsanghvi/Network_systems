@@ -21,13 +21,7 @@
 #define _GNU_SOURCE		  //macro needed for accept function
 #define MAXSIZE 200000
 #define BACKLOG 10		  //for listen function call
-#define MAXSIZE_WS  100   //for ws.conf file
 #define BUF_MAX_SIZE 10000
-
-#define SMALL	1
-#define LARGE	1
-
-#undef SMALL
 
 extern int h_errno;
 int timeout;
@@ -59,7 +53,7 @@ int main (int argc, char * argv[] ){
 	unsigned char temp_str[100];
 	char cache[100], file_buf[100], cached_ip[100], cached_total_pair[100];
 	char *result, *temp1;
-	char cache_filename[100], delete_buff[100];
+	char cache_filename[100], delete_buff[100], blocked_arr[100], err_response[1000];
 	pid_t pid;
 	char rqst_host[100], rqst_path[100], *rqst_port_str;
 	int nbytes_temp, nbytes_recv, nbytes_send, rqst_port = 80, pos=0;
@@ -68,8 +62,8 @@ int main (int argc, char * argv[] ){
 	struct in_addr **addr_list;
 	int nbytes_total = 0, filelen;
 	MD5_CTX md;
-	FILE *fp, *fp1;
-	int fd, time_diff = 0;
+	FILE *fp, *fp1, *fp2;
+	int fd, time_diff = 0, blocked_len = 0;
 	int doctype_flag=0;
 	int no_bytes_write=0, no_bytes_read=0;
 	struct stat stat_struct;
@@ -497,6 +491,52 @@ int main (int argc, char * argv[] ){
 						}
 						fclose(fp1);
 
+
+						//blocking logic
+						memset(blocked_arr, 0, sizeof(blocked_arr));
+						fp2 = fopen("blocked_list.txt", "r");
+						blocked_len = file_length(fp2);
+						fseek(fp2, 0, SEEK_SET);
+						fread(blocked_arr, sizeof(char), blocked_len, fp2);
+						fclose(fp2);
+						if((strstr(blocked_arr, rqst_host)!=NULL) || (strstr(blocked_arr, cached_ip)!=NULL)){
+							printf("In blocking list\n");
+
+		 					/*do{
+		 						memset(temp_cache_buf, 0, sizeof(temp_cache_buf));
+			 					memset(server_resp, 0, sizeof(server_resp));
+			 					memset(server_resp_head, 0, sizeof(server_resp_head));
+		 						memset(server_resp_body, 0, sizeof(server_resp_body));
+		 						nbytes_recv = fread(temp_cache_buf, sizeof(char), filelen, fp);
+				 				if((result = strstr(temp_cache_buf, "<!DOCTYPE"))!=NULL){
+			 						doctype_flag=1;
+		 							server_resp_head_ind = result - temp_cache_buf;
+			 						strncpy(server_resp_head, temp_cache_buf, server_resp_head_ind);
+			 						send(sock_connect, server_resp_head, server_resp_head_ind, 0);	 	
+			 						//server_resp += server_resp_head_ind;
+			 						strncpy(server_resp_body, temp_cache_buf+server_resp_head_ind, nbytes_recv - server_resp_head_ind);		
+									if(!nbytes_recv<=0){
+										send(sock_connect, server_resp_body, nbytes_recv - server_resp_head_ind, 0);
+									}		 				
+		 						}
+		 						else if(doctype_flag==1){	 				
+		 							if(!nbytes_recv<=0){
+										send(sock_connect, temp_cache_buf, nbytes_recv, 0);
+									}	
+				 				}
+			 				}while(nbytes_recv > 0);
+		 					doctype_flag=0;*/
+							
+							memset(err_response, 0, sizeof(err_response));  	
+		 					sprintf(err_response,"HTTP/1.1 403 Forbidden\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n<!DOCTYPE html>\r\n<html><head><title>Blocked resource</title></head>\r\n<body><p>ERROR 403 Forbidden</p>\r\n</body></html>\r\n");
+							send(sock_connect, err_response, strlen(err_response), 0);
+							//shutdown(sock_connect, 1);
+
+							return 1;
+						}
+						else{
+							printf("Not in blocking list\n");
+						}
 
 						if((sock_ptos = socket(AF_INET, SOCK_STREAM, 0))== -1)
 							perror("Socket not setup on proxy.\n");

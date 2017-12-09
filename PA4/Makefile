@@ -6,4 +6,4 @@ all: webproxy.c
 
 #clean up the executable created
 clean:
-	rm -rf webproxy host_ip_map.txt
+	rm -rf webproxy host_ip_map.txt *.html
