@@ -57,8 +57,8 @@ int main (int argc, char * argv[] ){
 	char *rqst_version;  //for splitting string
 	char rqst_url_copy[50];
 	unsigned char temp_str[100];
-	char cache[100];
-	char *result;
+	char cache[100], file_buf[100], cached_ip[100], cached_total_pair[100];
+	char *result, *temp1;
 	char cache_filename[100], delete_buff[100];
 	pid_t pid;
 	char rqst_host[100], rqst_path[100], *rqst_port_str;
@@ -68,12 +68,13 @@ int main (int argc, char * argv[] ){
 	struct in_addr **addr_list;
 	int nbytes_total = 0, filelen;
 	MD5_CTX md;
-	FILE *fp;
+	FILE *fp, *fp1;
 	int fd, time_diff = 0;
 	int doctype_flag=0;
 	int no_bytes_write=0, no_bytes_read=0;
 	struct stat stat_struct;
 	char temp_cache_buf[MAXSIZE];
+	char rm_file[100];
 
 	//parse command line arguments
 	if(argc != 3){
@@ -97,6 +98,11 @@ int main (int argc, char * argv[] ){
 	local.sin_port = htons(port_int);  		//setting port number from config file
 	local.sin_addr.s_addr = INADDR_ANY;     //setting the address
 
+
+	sprintf(rm_file, "rm host_ip_map.txt");
+	system(rm_file);
+	fp1 = fopen("host_ip_map.txt", "a");
+	fclose(fp1);
 
 	//calling the socket function
 	if((sock_listen = socket(AF_INET, SOCK_STREAM, 0))== -1)
@@ -239,19 +245,41 @@ int main (int argc, char * argv[] ){
 								}					
 							}
 
-							if ((he = gethostbyname(rqst_host)) == NULL) { 
-    							herror("gethostbyname");
-    							return 1;
-							}
+							fp1 = fopen("host_ip_map.txt", "r");
+							filelen = file_length(fp1);
+							fclose(fp1);
 
+							memset(file_buf, 0, sizeof(file_buf));
+							memset(cached_ip, 0, sizeof(cached_ip));
+							memset(cached_total_pair, 0, sizeof(cached_total_pair));
 
-							addr_list = (struct in_addr **)he->h_addr_list;
-					
-							if(addr_list[0] == NULL){
-								printf("Invalid ip addresses.\n");
-								return 1;
+							//creating the hostname-ip mapping for faster access
+							fp1 = fopen("host_ip_map.txt", "a+");
+							fread(file_buf, sizeof(char), filelen, fp1);
+							if((temp1 = strstr(file_buf, rqst_host))!=NULL){
+								printf("Entry already present.\n");
+								temp1 = strtok(temp1+strlen(rqst_host)+1, " \n");
+								strcpy(cached_ip, temp1);
 							}
+							else{
+								printf("Entry not present.\n");
+								if ((he = gethostbyname(rqst_host)) == NULL) { 
+    								herror("gethostbyname");
+    								return 1;
+								}
+								addr_list = (struct in_addr **)he->h_addr_list;
+								if(addr_list[0] == NULL){
+									printf("Invalid ip addresses.\n");
+									return 1;
+								}
+								sprintf(cached_total_pair, "%s %s\n", rqst_host, inet_ntoa(*addr_list[0]));
+								fwrite(cached_total_pair, sizeof(char), strlen(cached_total_pair), fp1);
+								strcpy(cached_ip, inet_ntoa(*addr_list[0]));
+							}
+							fclose(fp1);
+
 							//printf("Hostname is : %s\n", he->h_name);
+							//printf("inet_ntoa(*addr_list[0]) is %s\n", inet_ntoa(*addr_list[0]));
 
 
 							if((sock_ptos = socket(AF_INET, SOCK_STREAM, 0))== -1)
@@ -260,7 +288,7 @@ int main (int argc, char * argv[] ){
 							// building up the structure data
 							memset(&local_proxy, 0, sizeof local_proxy);
 							local_proxy.sin_family = AF_INET; //only defining for IPv4 addresses
-							local_proxy.sin_addr.s_addr = inet_addr(inet_ntoa(*addr_list[0]));  //setting address field
+							local_proxy.sin_addr.s_addr = inet_addr(cached_ip);  //setting address field
 							local_proxy.sin_port = htons(80); 	//setting port no. 
 
 			 				connect(sock_ptos, (struct sockaddr *) &local_proxy, sizeof(local_proxy));
@@ -436,23 +464,38 @@ int main (int argc, char * argv[] ){
 							}					
 						}
 
-						//printf("Rqst host is %s\n", rqst_host);
-						//printf("Rqst path is %s\n", rqst_path);
+						fp1 = fopen("host_ip_map.txt", "r");
+						filelen = file_length(fp1);
+						fclose(fp1);
 
+						memset(file_buf, 0, sizeof(file_buf));
+						memset(cached_ip, 0, sizeof(cached_ip));
+						memset(cached_total_pair, 0, sizeof(cached_total_pair));
 
-						if ((he = gethostbyname(rqst_host)) == NULL) { 
-    						herror("gethostbyname");
-    						return 1;
+						//creating the hostname-ip mapping for faster access
+						fp1 = fopen("host_ip_map.txt", "a+");
+						fread(file_buf, sizeof(char), filelen, fp1);
+						if((temp1 = strstr(file_buf, rqst_host))!=NULL){
+							printf("Entry already present.\n");
+							temp1 = strtok(temp1+strlen(rqst_host)+1, " \n");
+							strcpy(cached_ip, temp1);
 						}
-
-
-						addr_list = (struct in_addr **)he->h_addr_list;
-				
-						if(addr_list[0] == NULL){
-							printf("Invalid ip addresses.\n");
-							return 1;
+						else{
+							printf("Entry not present.\n");
+							if ((he = gethostbyname(rqst_host)) == NULL) { 
+								herror("gethostbyname");
+								return 1;
+							}
+							addr_list = (struct in_addr **)he->h_addr_list;
+							if(addr_list[0] == NULL){
+								printf("Invalid ip addresses.\n");
+								return 1;
+							}
+							sprintf(cached_total_pair, "%s %s\n", rqst_host, inet_ntoa(*addr_list[0]));
+							fwrite(cached_total_pair, sizeof(char), strlen(cached_total_pair), fp1);
+							strcpy(cached_ip, inet_ntoa(*addr_list[0]));
 						}
-						//printf("Hostname is : %s\n", he->h_name);
+						fclose(fp1);
 
 
 						if((sock_ptos = socket(AF_INET, SOCK_STREAM, 0))== -1)
