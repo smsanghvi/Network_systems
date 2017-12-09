@@ -73,6 +73,7 @@ int main (int argc, char * argv[] ){
 	int doctype_flag=0;
 	int no_bytes_write=0, no_bytes_read=0;
 	struct stat stat_struct;
+	char temp_cache_buf[MAXSIZE];
 
 	//parse command line arguments
 	if(argc != 3){
@@ -174,29 +175,218 @@ int main (int argc, char * argv[] ){
 
 				//check if the cache file already exists
 				if( access( cache_filename, F_OK ) != -1 ) {
-					printf("Cache file already exists.\n");
+					printf("\nCache file already exists.\n");
 					//check timeout
 					fd = open(cache_filename, O_RDONLY);
 					if(fd!=-1){
 						fstat(fd, &stat_struct);
 						close(fd);
 					} 
-					printf("Last modification time is %ld\n", (stat_struct.st_mtime));
+					//printf("Last modification time is %ld\n", (stat_struct.st_mtime));
 					current_time = time(NULL);
-					printf("Current time is %ld\n", current_time);
+					//printf("Current time is %ld\n", current_time);
 					time_diff = current_time - (stat_struct.st_mtime);
-					printf("Time diff is %d seconds\n", time_diff);
+					//printf("Time diff is %d seconds\n", time_diff);
 
 					if(time_diff > timeout){
-						printf("YOU EXCEEDED TIMEOUT!!!\n");
+						printf("Cache timed out and deleted.\n");
 						//deleting the cache file
 						sprintf(delete_buff, "rm %s", cache_filename);
 						system(delete_buff);
-						printf("Deleted the file.\n");
+
+		  				//only process GET requests
+	  					if(!strncmp(rqst_method, "GET", 3)){
+							if(strstr(rqst_url_copy, "http://")!=NULL){
+								rqst_url += 7;
+								strcpy(rqst_host, rqst_url);
+								if(strstr(rqst_host, "/")!=NULL){
+									rqst_url = strtok(rqst_url, "/");
+									strcpy(rqst_host, "http://");
+									strcat(rqst_host, rqst_url);
+									rqst_url = strtok(NULL, ": ");
+									strcpy(rqst_path, "/");
+									strcat(rqst_path, rqst_url);
+								}
+								else{
+									strcpy(rqst_path, "/");
+								}
+							}
+							else if(strstr(rqst_url_copy, "https://")!=NULL){
+								rqst_url += 8;
+								strcpy(rqst_host, rqst_url);
+								if(strstr(rqst_host, "/")!=NULL){
+									rqst_url = strtok(rqst_url, "/");
+									strcpy(rqst_host, "https://");
+									strcat(rqst_host, rqst_url);
+									rqst_url = strtok(NULL, ": ");
+									strcpy(rqst_path, "/");
+									strcpy(rqst_path, rqst_url);
+								}
+								else{
+									strcpy(rqst_path, "/");
+								}
+							}
+							else{
+								if(strstr(rqst_url_copy, ":")==NULL){
+									strcpy(rqst_host, rqst_url);
+									rqst_port = 80;
+								}
+								else{
+									rqst_url = strtok(rqst_url, ":");
+									strcpy(rqst_host, rqst_url);
+									rqst_port_str = strtok(NULL, " ");
+									rqst_port = atoi(rqst_port_str);
+								}					
+							}
+
+							if ((he = gethostbyname(rqst_host)) == NULL) { 
+    							herror("gethostbyname");
+    							return 1;
+							}
+
+
+							addr_list = (struct in_addr **)he->h_addr_list;
+					
+							if(addr_list[0] == NULL){
+								printf("Invalid ip addresses.\n");
+								return 1;
+							}
+							//printf("Hostname is : %s\n", he->h_name);
+
+
+							if((sock_ptos = socket(AF_INET, SOCK_STREAM, 0))== -1)
+								perror("Socket not setup on proxy.\n");
+
+							// building up the structure data
+							memset(&local_proxy, 0, sizeof local_proxy);
+							local_proxy.sin_family = AF_INET; //only defining for IPv4 addresses
+							local_proxy.sin_addr.s_addr = inet_addr(inet_ntoa(*addr_list[0]));  //setting address field
+							local_proxy.sin_port = htons(80); 	//setting port no. 
+
+			 				connect(sock_ptos, (struct sockaddr *) &local_proxy, sizeof(local_proxy));
+	 				
+	 						//sending out the HTTP request message
+		 					sprintf(http_request,"%s %s HTTP/1.1\r\nHost: %s\r\nConnection: Close\r\n\r\n", rqst_method, rqst_path, rqst_host);
+		 					nbytes_temp = send(sock_ptos, http_request, strlen(http_request), 0);
+
+				 			//printf("Sent http request of %d bytes.\n", nbytes_temp);
+				 			//printf("HTTP request message: %s\n", http_request);
+
+		 					fp = fopen(cache_filename, "a");
+
+		 					do{
+			 					memset(server_resp, 0, sizeof(server_resp));
+			 					memset(server_resp_head, 0, sizeof(server_resp_head));
+		 						memset(server_resp_body, 0, sizeof(server_resp_body));
+			 					nbytes_recv = recv(sock_ptos, server_resp, sizeof(server_resp), 0);
+				 				if((result = strstr(server_resp, "<!DOCTYPE"))!=NULL){
+				 					doctype_flag=1;
+		 							server_resp_head_ind = result - server_resp;
+			 						strncpy(server_resp_head, server_resp, server_resp_head_ind);
+			 						send(sock_connect, server_resp_head, server_resp_head_ind, 0);	 	
+			 						//server_resp += server_resp_head_ind;
+			 						strncpy(server_resp_body, server_resp+server_resp_head_ind, nbytes_recv - server_resp_head_ind);	
+					 				no_bytes_write = fwrite(server_resp_body, sizeof(char), nbytes_recv - server_resp_head_ind, fp);	
+									if(!nbytes_recv<=0){
+										send(sock_connect, server_resp_body, no_bytes_write, 0);
+									}		 				
+		 						}
+		 						else if(doctype_flag==1){
+									no_bytes_write = fwrite(server_resp, sizeof(char), nbytes_recv, fp);		 				
+		 							if(!nbytes_recv<=0){
+										send(sock_connect, server_resp, no_bytes_write, 0);
+									}	
+				 				}
+		 					}while(nbytes_recv > 0);
+		 					doctype_flag=0;
+
+		 					fclose(fp);	 	
+	 					}//end of GET block
+					
 					}
 					else{
-						printf("Serving you the cached file.\n");
-					}
+						//serve directly from proxy
+						printf("\nServing you the cached file.\n");
+		  				//only process GET requests
+  						if(!strncmp(rqst_method, "GET", 3)){
+							if(strstr(rqst_url_copy, "http://")!=NULL){
+								rqst_url += 7;
+								strcpy(rqst_host, rqst_url);
+								if(strstr(rqst_host, "/")!=NULL){
+									rqst_url = strtok(rqst_url, "/");
+									strcpy(rqst_host, "http://");
+									strcat(rqst_host, rqst_url);
+									rqst_url = strtok(NULL, ": ");
+									strcpy(rqst_path, "/");
+									strcat(rqst_path, rqst_url);
+								}
+								else{
+									strcpy(rqst_path, "/");
+								}
+							}
+							else if(strstr(rqst_url_copy, "https://")!=NULL){
+								rqst_url += 8;
+								strcpy(rqst_host, rqst_url);
+								if(strstr(rqst_host, "/")!=NULL){
+									rqst_url = strtok(rqst_url, "/");
+									strcpy(rqst_host, "https://");
+									strcat(rqst_host, rqst_url);
+									rqst_url = strtok(NULL, ": ");
+									strcpy(rqst_path, "/");
+									strcpy(rqst_path, rqst_url);
+								}
+								else{
+									strcpy(rqst_path, "/");
+								}
+							}
+							else{
+								if(strstr(rqst_url_copy, ":")==NULL){
+									strcpy(rqst_host, rqst_url);
+									rqst_port = 80;
+								}
+								else{
+									rqst_url = strtok(rqst_url, ":");
+									strcpy(rqst_host, rqst_url);
+									rqst_port_str = strtok(NULL, " ");
+									rqst_port = atoi(rqst_port_str);
+								}					
+							}
+
+							fp = fopen(cache_filename, "r");
+							filelen = file_length(fp);
+							fclose(fp);
+
+							fp = fopen(cache_filename, "r");
+
+		 					do{
+		 						memset(temp_cache_buf, 0, sizeof(temp_cache_buf));
+			 					memset(server_resp, 0, sizeof(server_resp));
+			 					memset(server_resp_head, 0, sizeof(server_resp_head));
+		 						memset(server_resp_body, 0, sizeof(server_resp_body));
+		 						nbytes_recv = fread(temp_cache_buf, sizeof(char), filelen, fp);
+				 				if((result = strstr(temp_cache_buf, "<!DOCTYPE"))!=NULL){
+			 						doctype_flag=1;
+		 							server_resp_head_ind = result - temp_cache_buf;
+			 						strncpy(server_resp_head, temp_cache_buf, server_resp_head_ind);
+			 						send(sock_connect, server_resp_head, server_resp_head_ind, 0);	 	
+			 						//server_resp += server_resp_head_ind;
+			 						strncpy(server_resp_body, temp_cache_buf+server_resp_head_ind, nbytes_recv - server_resp_head_ind);		
+									if(!nbytes_recv<=0){
+										send(sock_connect, server_resp_body, nbytes_recv - server_resp_head_ind, 0);
+									}		 				
+		 						}
+		 						else if(doctype_flag==1){	 				
+		 							if(!nbytes_recv<=0){
+										send(sock_connect, temp_cache_buf, nbytes_recv, 0);
+									}	
+				 				}
+			 				}while(nbytes_recv > 0);
+		 					doctype_flag=0;
+
+		 					fclose(fp);	 
+					
+						}//end of GET block
+					}	
 				}
 				else{
 					printf("\nCreating a cache file.\n");
